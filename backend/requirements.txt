@@ -1,0 +1,16 @@
+# Solar Panel Classification Backend Dependencies
+# Install with: pip install -r requirements.txt --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host=pypi.python.org
+
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+opencv-python==4.8.1.78
+torch==2.0.1
+torchvision==0.15.2
+ultralytics==8.0.196
+Pillow==10.0.1
+pandas==2.1.1
+numpy==1.25.2
+openpyxl==3.1.2
+python-jose[cryptography]==3.3.0
+aiofiles==23.2.1 
