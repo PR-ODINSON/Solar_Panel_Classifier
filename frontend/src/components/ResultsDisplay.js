@@ -80,6 +80,14 @@ const ResultsDisplay = ({ results }) => {
                   {successfulResults[selectedImageIndex].filename}
                 </h4>
 
+                {/* GPS Coordinates */}
+                {(successfulResults[selectedImageIndex].gps_latitude !== undefined && successfulResults[selectedImageIndex].gps_latitude !== null) && (
+                  <div className="mb-2 text-sm text-gray-700">
+                    <span className="font-medium">Latitude:</span> {successfulResults[selectedImageIndex].gps_latitude} <br />
+                    <span className="font-medium">Longitude:</span> {successfulResults[selectedImageIndex].gps_longitude}
+                  </div>
+                )}
+
                 {/* Annotated Image */}
                 <div className="mb-4">
                   <img

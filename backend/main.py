@@ -18,6 +18,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from PIL.ExifTags import TAGS, GPSTAGS
 
 app = FastAPI(title="Solar Panel Classification API")
 
@@ -56,6 +57,38 @@ Image.MAX_IMAGE_PIXELS = None
 # Mount static files
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
+def get_exif_data(image):
+    exif_data = {}
+    info = image._getexif()
+    if not info:
+        return None
+    for tag, value in info.items():
+        decoded = TAGS.get(tag, tag)
+        if decoded == "GPSInfo":
+            gps_data = {}
+            for t in value:
+                sub_decoded = GPSTAGS.get(t, t)
+                gps_data[sub_decoded] = value[t]
+            exif_data[decoded] = gps_data
+        else:
+            exif_data[decoded] = value
+    return exif_data
+
+def convert_to_degrees(value):
+    d, m, s = value
+    return float(d) + float(m)/60 + float(s)/3600
+
+def get_lat_lon(exif_data):
+    if not exif_data or "GPSInfo" not in exif_data:
+        return None, None
+    gps_info = exif_data["GPSInfo"]
+    lat = convert_to_degrees(gps_info["GPSLatitude"])
+    lon = convert_to_degrees(gps_info["GPSLongitude"])
+    if gps_info.get("GPSLatitudeRef") == "S":
+        lat = -lat
+    if gps_info.get("GPSLongitudeRef") == "W":
+        lon = -lon
+    return lat, lon
 class SolarPanelProcessor:
     def __init__(self):
         self.yolo_model = None
@@ -278,6 +311,11 @@ class SolarPanelProcessor:
         excel_path = os.path.join(OUTPUT_DIR, f"{base_name}_report.xlsx")
         metadata_csv = os.path.join(TILE_DIR, "tile_metadata.csv")
         
+        # Extract GPS data
+        img = Image.open(image_path)
+        exif = get_exif_data(img)
+        latitude, longitude = get_lat_lon(exif)
+
         try:
             # Run pipeline
             tiles_info = self.tile_image_with_mapping(image_path, TILE_DIR)
@@ -293,7 +331,9 @@ class SolarPanelProcessor:
                 'annotated_image': f"/outputs/{os.path.basename(output_image_path)}",
                 'excel_report': f"/outputs/{os.path.basename(excel_path)}",
                 'summary': excel_report,
-                'detailed_results': classification_results
+                'detailed_results': classification_results,
+                'gps_latitude': latitude,
+                'gps_longitude': longitude
             }
             
         except Exception as e:
