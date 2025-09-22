@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Storage</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Clear Browser Storage</h1>
+    <p>Use this page to clear any conflicting authentication data</p>
+    
+    <button onclick="clearAllStorage()">Clear All Storage</button>
+    <button onclick="checkStorage()">Check Current Storage</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function clearAllStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            document.getElementById('result').innerHTML = '<p class="success">✅ All storage cleared successfully!</p><p class="info">You can now close this tab and refresh the main app.</p>';
+        }
+
+        function checkStorage() {
+            const items = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                items.push(`${key}: ${value}`);
+            }
+            
+            if (items.length === 0) {
+                document.getElementById('result').innerHTML = '<p class="success">✅ Storage is clean!</p>';
+            } else {
+                document.getElementById('result').innerHTML = '<p class="info">Current localStorage items:</p><ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+            }
+        }
+
+        // Check storage on page load
+        window.onload = checkStorage;
+    </script>
+</body>
+</html>
