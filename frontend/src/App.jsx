@@ -12,16 +12,16 @@ import NotFound from './pages/NotFound.jsx'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard.jsx'
-import UserManagement from './pages/admin/UserManagement.jsx'
-import MaintenanceRequests from './pages/admin/MaintenanceRequests.jsx'
-import Reports from './pages/admin/Reports.jsx'
+import UploadInfer from './pages/admin/UploadInfer.jsx'
+import Inspections from './pages/admin/Inspections.jsx'
+import InspectionDetail from './pages/admin/InspectionDetail.jsx'
+import Defects from './pages/admin/Defects.jsx'
+import DefectDetail from './pages/admin/DefectDetail.jsx'
 import AdminSettings from './pages/admin/Settings.jsx'
 
 // Maintenance User Pages
 import MaintenanceDashboard from './pages/maintenance/Dashboard.jsx'
-import MyTasks from './pages/maintenance/MyTasks.jsx'
 import Profile from './pages/maintenance/Profile.jsx'
-import HelpSupport from './pages/maintenance/HelpSupport.jsx'
 
 function App() {
   return (
@@ -38,7 +38,7 @@ function App() {
             
             {/* Admin Routes */}
             <Route
-              path="/admin/dashboard"
+              path="/dashboard"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
@@ -49,40 +49,62 @@ function App() {
             />
             
             <Route
-              path="/admin/users"
+              path="/upload-infer"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
-                    <UserManagement />
+                    <UploadInfer />
                   </Layout>
                 </ProtectedRoute>
               }
             />
             
             <Route
-              path="/admin/maintenance-requests"
+              path="/inspections"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
-                    <MaintenanceRequests />
+                    <Inspections />
                   </Layout>
                 </ProtectedRoute>
               }
             />
             
             <Route
-              path="/admin/reports"
+              path="/inspections/:id"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
-                    <Reports />
+                    <InspectionDetail />
                   </Layout>
                 </ProtectedRoute>
               }
             />
             
             <Route
-              path="/admin/settings"
+              path="/defects"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <Defects />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/defects/:id"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <DefectDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/settings"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
@@ -105,33 +127,55 @@ function App() {
             />
             
             <Route
-              path="/maintenance/tasks"
+              path="/maintenance/inspections"
               element={
                 <ProtectedRoute requiredRole="maintenance_staff">
                   <Layout>
-                    <MyTasks />
+                    <Inspections />
                   </Layout>
                 </ProtectedRoute>
               }
             />
             
             <Route
-              path="/maintenance/profile"
+              path="/maintenance/inspections/:id"
+              element={
+                <ProtectedRoute requiredRole="maintenance_staff">
+                  <Layout>
+                    <InspectionDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/maintenance/defects"
+              element={
+                <ProtectedRoute requiredRole="maintenance_staff">
+                  <Layout>
+                    <Defects />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/maintenance/defects/:id"
+              element={
+                <ProtectedRoute requiredRole="maintenance_staff">
+                  <Layout>
+                    <DefectDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/maintenance/settings"
               element={
                 <ProtectedRoute requiredRole="maintenance_staff">
                   <Layout>
                     <Profile />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/maintenance/help"
-              element={
-                <ProtectedRoute requiredRole="maintenance_staff">
-                  <Layout>
-                    <HelpSupport />
                   </Layout>
                 </ProtectedRoute>
               }

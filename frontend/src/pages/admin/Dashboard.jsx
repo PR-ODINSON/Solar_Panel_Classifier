@@ -13,51 +13,51 @@ import {
 
 const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState({
-    totalUsers: 24,
-    activeUsers: 18,
-    pendingRequests: 12,
-    completedToday: 8,
-    totalReports: 156,
-    criticalIssues: 3
+    totalPanelsMonitored: 1247,
+    defectivePanels: 23,
+    energyLossEstimation: '142.5 kWh',
+    criticalAlerts: 5,
+    pendingInspections: 8,
+    completedInspections: 156
   })
 
   // Mock data for recent activities
   const recentActivities = [
-    { id: 1, type: 'user', message: 'New user John Smith registered', time: '2 minutes ago' },
-    { id: 2, type: 'request', message: 'Maintenance request #1234 completed', time: '15 minutes ago' },
-    { id: 3, type: 'alert', message: 'Critical issue reported in Block A', time: '1 hour ago' },
-    { id: 4, type: 'report', message: 'Weekly report generated', time: '2 hours ago' }
+    { id: 1, type: 'inspection', message: 'Drone inspection completed for Zone A', time: '2 minutes ago' },
+    { id: 2, type: 'defect', message: 'Hot spot detected in Panel Array #23', time: '15 minutes ago' },
+    { id: 3, type: 'alert', message: 'Critical crack found in Section B', time: '1 hour ago' },
+    { id: 4, type: 'report', message: 'Daily inspection report generated', time: '2 hours ago' }
   ]
 
   const quickActions = [
     {
-      name: 'Manage Users',
-      description: 'Add, edit, or deactivate user accounts',
-      href: '/admin/users',
+      name: 'Upload & Infer',
+      description: 'Upload drone images for AI analysis',
+      href: '/upload-infer',
       icon: Users,
       color: 'blue',
-      count: dashboardData.totalUsers
+      count: null
     },
     {
-      name: 'Maintenance Requests',
-      description: 'View and assign maintenance tasks',
-      href: '/admin/maintenance-requests',
-      icon: Wrench,
-      color: 'yellow',
-      count: dashboardData.pendingRequests
-    },
-    {
-      name: 'Reports',
-      description: 'Generate and view system reports',
-      href: '/admin/reports',
+      name: 'Inspection Reports',
+      description: 'View and manage inspection reports',
+      href: '/inspections',
       icon: FileText,
       color: 'green',
-      count: dashboardData.totalReports
+      count: dashboardData.completedInspections
+    },
+    {
+      name: 'Defect Management',
+      description: 'Manage detected defects and repairs',
+      href: '/defects',
+      icon: AlertTriangle,
+      color: 'yellow',
+      count: dashboardData.defectivePanels
     },
     {
       name: 'System Settings',
       description: 'Configure system parameters',
-      href: '/admin/settings',
+      href: '/settings',
       icon: SettingsIcon,
       color: 'purple',
       count: null
@@ -66,36 +66,36 @@ const AdminDashboard = () => {
 
   const stats = [
     {
-      name: 'Total Users',
-      value: dashboardData.totalUsers,
-      change: '+2 this week',
+      name: 'Total Panels Monitored',
+      value: dashboardData.totalPanelsMonitored,
+      change: '+24 new panels',
       changeType: 'positive',
-      icon: Users,
+      icon: TrendingUp,
       color: 'blue'
     },
     {
-      name: 'Active Users',
-      value: dashboardData.activeUsers,
-      change: '+5 since yesterday',
-      changeType: 'positive',
-      icon: CheckCircle,
-      color: 'green'
-    },
-    {
-      name: 'Pending Requests',
-      value: dashboardData.pendingRequests,
-      change: '-3 from yesterday',
-      changeType: 'positive',
-      icon: Clock,
-      color: 'yellow'
-    },
-    {
-      name: 'Critical Issues',
-      value: dashboardData.criticalIssues,
-      change: '+1 new',
+      name: 'Defective Panels',
+      value: dashboardData.defectivePanels,
+      change: '+3 since yesterday',
       changeType: 'negative',
       icon: AlertTriangle,
       color: 'red'
+    },
+    {
+      name: 'Energy Loss Estimation',
+      value: dashboardData.energyLossEstimation,
+      change: '-5.2 kWh improvement',
+      changeType: 'positive',
+      icon: TrendingUp,
+      color: 'green'
+    },
+    {
+      name: 'Critical Alerts',
+      value: dashboardData.criticalAlerts,
+      change: '+2 new alerts',
+      changeType: 'negative',
+      icon: AlertTriangle,
+      color: 'yellow'
     }
   ]
 
@@ -106,10 +106,10 @@ const AdminDashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Admin Dashboard
+              O&M Dashboard
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              System overview and management tools
+              Solar panel monitoring and maintenance overview
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -226,13 +226,13 @@ const AdminDashboard = () => {
               {recentActivities.map((activity) => (
                 <div key={activity.id} className="flex items-start space-x-3">
                   <div className={`p-1 rounded-full mt-1 ${
-                    activity.type === 'user' ? 'bg-blue-100 text-blue-600' :
-                    activity.type === 'request' ? 'bg-green-100 text-green-600' :
+                    activity.type === 'inspection' ? 'bg-blue-100 text-blue-600' :
+                    activity.type === 'defect' ? 'bg-yellow-100 text-yellow-600' :
                     activity.type === 'alert' ? 'bg-red-100 text-red-600' :
                     'bg-gray-100 text-gray-600'
                   }`}>
-                    {activity.type === 'user' && <Users className="h-4 w-4" />}
-                    {activity.type === 'request' && <Wrench className="h-4 w-4" />}
+                    {activity.type === 'inspection' && <CheckCircle className="h-4 w-4" />}
+                    {activity.type === 'defect' && <AlertTriangle className="h-4 w-4" />}
                     {activity.type === 'alert' && <AlertTriangle className="h-4 w-4" />}
                     {activity.type === 'report' && <FileText className="h-4 w-4" />}
                   </div>
@@ -262,26 +262,26 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div className="text-center">
               <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {dashboardData.completedToday}
+                {dashboardData.pendingInspections}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Tasks completed today
+                Pending inspections
               </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                98.5%
+                98.2%
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                System uptime
+                Panel efficiency
               </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                {Math.round((dashboardData.activeUsers / dashboardData.totalUsers) * 100)}%
+                95.8%
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                User activity rate
+                System availability
               </div>
             </div>
           </div>

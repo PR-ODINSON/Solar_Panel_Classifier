@@ -14,62 +14,79 @@ import { useAuth } from '../../context/AuthContext.jsx'
 const MaintenanceDashboard = () => {
   const { user } = useAuth()
   const [dashboardData, setDashboardData] = useState({
+    panelsAssigned: 240,
     pendingTasks: 8,
-    completedToday: 3,
-    overdueTasks: 2,
-    totalAssigned: 15
+    criticalAlerts: 3,
+    completedToday: 5
   })
 
   // Mock data for assigned tasks
   const myTasks = [
     {
       id: 1,
-      title: 'HVAC System Repair - Building A',
+      title: 'Repair Cracked Panel A-15',
       priority: 'high',
       status: 'in_progress',
       dueDate: '2024-01-22T17:00:00Z',
-      location: 'Building A, Floor 3',
-      estimatedTime: '3 hours'
+      location: 'Section A, Row 3, Column 15',
+      estimatedTime: '2 hours',
+      defectType: 'crack'
     },
     {
       id: 2,
-      title: 'Plumbing Issue - Restroom B2',
+      title: 'Fix Hot Spot in Panel A-23',
       priority: 'medium',
       status: 'pending',
       dueDate: '2024-01-21T12:00:00Z',
-      location: 'Building B, Floor 2',
-      estimatedTime: '1.5 hours'
+      location: 'Section A, Row 5, Column 23',
+      estimatedTime: '1 hour',
+      defectType: 'hotspot'
     },
     {
       id: 3,
-      title: 'Light Fixture Replacement',
+      title: 'Clean Dust from Panel Array B',
       priority: 'low',
       status: 'pending',
       dueDate: '2024-01-24T16:00:00Z',
-      location: 'Building C, Lobby',
-      estimatedTime: '45 minutes'
+      location: 'Section B, Rows 8-12',
+      estimatedTime: '45 minutes',
+      defectType: 'dust'
     }
   ]
 
   const recentActivity = [
-    { id: 1, action: 'Completed', task: 'Electrical Panel Inspection', time: '2 hours ago' },
-    { id: 2, action: 'Started', task: 'HVAC System Repair', time: '4 hours ago' },
-    { id: 3, action: 'Assigned', task: 'Security Camera Maintenance', time: '1 day ago' }
+    { id: 1, action: 'Completed', task: 'Panel dust cleaning in Section C', time: '2 hours ago' },
+    { id: 2, action: 'Started', task: 'Crack repair for Panel A-15', time: '4 hours ago' },
+    { id: 3, action: 'Assigned', task: 'Hot spot investigation in Section B', time: '1 day ago' }
   ]
 
   const upcomingSchedule = [
-    { id: 1, title: 'Weekly Team Meeting', time: '2024-01-22T09:00:00Z', type: 'meeting' },
-    { id: 2, title: 'Safety Training Session', time: '2024-01-23T14:00:00Z', type: 'training' },
-    { id: 3, title: 'Equipment Inspection Round', time: '2024-01-24T08:00:00Z', type: 'inspection' }
+    { id: 1, title: 'Panel Cleaning - Section D', time: '2024-01-22T09:00:00Z', type: 'maintenance' },
+    { id: 2, title: 'Defect Assessment Training', time: '2024-01-23T14:00:00Z', type: 'training' },
+    { id: 3, title: 'Quarterly Inspection Round', time: '2024-01-24T08:00:00Z', type: 'inspection' }
   ]
 
   const stats = [
+    {
+      name: 'Panels Assigned',
+      value: dashboardData.panelsAssigned,
+      icon: TrendingUp,
+      color: 'blue',
+      description: 'Panels under your maintenance'
+    },
     {
       name: 'Pending Tasks',
       value: dashboardData.pendingTasks,
       icon: Clock,
       color: 'yellow',
-      description: 'Tasks awaiting action'
+      description: 'Repair tasks awaiting action'
+    },
+    {
+      name: 'Critical Alerts',
+      value: dashboardData.criticalAlerts,
+      icon: AlertTriangle,
+      color: 'red',
+      description: 'High priority defects'
     },
     {
       name: 'Completed Today',
@@ -77,20 +94,6 @@ const MaintenanceDashboard = () => {
       icon: CheckCircle,
       color: 'green',
       description: 'Tasks finished today'
-    },
-    {
-      name: 'Overdue Tasks',
-      value: dashboardData.overdueTasks,
-      icon: AlertTriangle,
-      color: 'red',
-      description: 'Tasks past due date'
-    },
-    {
-      name: 'Total Assigned',
-      value: dashboardData.totalAssigned,
-      icon: Wrench,
-      color: 'blue',
-      description: 'All assigned tasks'
     }
   ]
 
@@ -130,7 +133,7 @@ const MaintenanceDashboard = () => {
               Welcome back, {user?.name || user?.username}!
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Here's your maintenance dashboard for today
+              Here's your solar panel maintenance overview for today
             </p>
           </div>
           <div className="text-right">
@@ -193,7 +196,7 @@ const MaintenanceDashboard = () => {
                 My Assigned Tasks
               </h3>
               <Link
-                to="/maintenance/tasks"
+                to="/maintenance/defects"
                 className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700"
               >
                 View all →
@@ -205,7 +208,7 @@ const MaintenanceDashboard = () => {
               {myTasks.slice(0, 3).map((task) => (
                 <Link
                   key={task.id}
-                  to={`/maintenance/tasks/${task.id}`}
+                  to={`/maintenance/defects/${task.id}`}
                   className="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200"
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -291,11 +294,11 @@ const MaintenanceDashboard = () => {
                 <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className="flex items-center">
                     <div className={`p-2 rounded-full mr-3 ${
-                      item.type === 'meeting' ? 'bg-blue-100 text-blue-600' :
+                      item.type === 'maintenance' ? 'bg-blue-100 text-blue-600' :
                       item.type === 'training' ? 'bg-green-100 text-green-600' :
                       'bg-yellow-100 text-yellow-600'
                     }`}>
-                      {item.type === 'meeting' && <Calendar className="h-4 w-4" />}
+                      {item.type === 'maintenance' && <Wrench className="h-4 w-4" />}
                       {item.type === 'training' && <TrendingUp className="h-4 w-4" />}
                       {item.type === 'inspection' && <CheckCircle className="h-4 w-4" />}
                     </div>
@@ -324,22 +327,22 @@ const MaintenanceDashboard = () => {
           <div className="card-body">
             <div className="grid grid-cols-2 gap-4">
               <Link
-                to="/maintenance/tasks"
+                to="/maintenance/defects"
                 className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
               >
                 <Wrench className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  View All Tasks
+                  Manage Defects
                 </p>
               </Link>
               
               <Link
-                to="/maintenance/profile"
+                to="/maintenance/inspections"
                 className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
               >
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Update Profile
+                  View Reports
                 </p>
               </Link>
               
@@ -351,12 +354,12 @@ const MaintenanceDashboard = () => {
               </button>
               
               <Link
-                to="/maintenance/help"
+                to="/maintenance/settings"
                 className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
               >
                 <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Report Issue
+                  Profile Settings
                 </p>
               </Link>
             </div>

@@ -15,7 +15,9 @@ import {
   Bell,
   Sun,
   Moon,
-  Home
+  Home,
+  Upload,
+  FileText
 } from 'lucide-react'
 
 const Layout = ({ children }) => {
@@ -45,20 +47,20 @@ const Layout = ({ children }) => {
   const getNavigationItems = () => {
     if (isAdmin()) {
       return [
-        { name: 'Dashboard', href: '/admin/dashboard', icon: BarChart3 },
-        { name: 'User Management', href: '/admin/users', icon: User },
-        { name: 'Maintenance Requests', href: '/admin/maintenance-requests', icon: AlertTriangle },
-        { name: 'Reports', href: '/admin/reports', icon: BarChart3 },
-        { name: 'Settings', href: '/admin/settings', icon: Settings }
+        { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+        { name: 'Upload & Infer', href: '/upload-infer', icon: Upload },
+        { name: 'Inspection Reports', href: '/inspections', icon: FileText },
+        { name: 'Defect Management', href: '/defects', icon: AlertTriangle },
+        { name: 'Settings', href: '/settings', icon: Settings }
       ]
     }
 
     if (isMaintenanceStaff()) {
       return [
         { name: 'Dashboard', href: '/maintenance/dashboard', icon: Home },
-        { name: 'My Tasks', href: '/maintenance/tasks', icon: AlertTriangle },
-        { name: 'Profile', href: '/maintenance/profile', icon: User },
-        { name: 'Help/Support', href: '/maintenance/help', icon: Search }
+        { name: 'Inspection Reports', href: '/maintenance/inspections', icon: FileText },
+        { name: 'Defect Management', href: '/maintenance/defects', icon: AlertTriangle },
+        { name: 'Settings', href: '/maintenance/settings', icon: Settings }
       ]
     }
 
@@ -166,15 +168,22 @@ const Layout = ({ children }) => {
                 {/* Dynamic page title based on current route */}
                 {(() => {
                   const routeTitle = {
-                    '/admin/dashboard': 'Admin Dashboard',
-                    '/admin/users': 'User Management',
-                    '/admin/maintenance-requests': 'Maintenance Requests',
-                    '/admin/reports': 'Reports',
-                    '/admin/settings': 'Settings',
+                    '/dashboard': 'O&M Dashboard',
+                    '/upload-infer': 'Upload & Infer Images',
+                    '/inspections': 'Inspection Reports',
+                    '/defects': 'Defect Management',
+                    '/settings': 'Settings',
                     '/maintenance/dashboard': 'Maintenance Dashboard',
-                    '/maintenance/tasks': 'My Tasks',
-                    '/maintenance/profile': 'Profile',
-                    '/maintenance/help': 'Help & Support'
+                    '/maintenance/inspections': 'Inspection Reports',
+                    '/maintenance/defects': 'Defect Management',
+                    '/maintenance/settings': 'Profile Settings'
+                  }
+                  // Handle dynamic routes like /inspections/:id
+                  if (location.pathname.startsWith('/inspections/')) {
+                    return 'Inspection Details'
+                  }
+                  if (location.pathname.startsWith('/defects/')) {
+                    return 'Defect Details'
                   }
                   return routeTitle[location.pathname] || 'Dashboard'
                 })()}
