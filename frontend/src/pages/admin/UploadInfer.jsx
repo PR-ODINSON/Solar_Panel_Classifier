@@ -10,21 +10,19 @@ const UploadInfer = () => {
 
   const API_BASE_URL = 'http://localhost:8000' // Backend server URL
 
+
   // Check backend health on component mount
   useEffect(() => {
     const checkBackendHealth = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/health`)
         if (response.ok) {
-          const data = await response.json()
           setBackendStatus('connected')
-          console.log('Backend health check:', data)
         } else {
           setBackendStatus('disconnected')
         }
       } catch (error) {
         setBackendStatus('disconnected')
-        console.error('Backend health check failed:', error)
       }
     }
     
@@ -110,7 +108,6 @@ const UploadInfer = () => {
       }))
       
     } catch (error) {
-      console.error('Inference failed:', error)
       setError(error.message)
       setUploadedFiles(prev => prev.map(file => ({ ...file, status: 'error' })))
     } finally {
@@ -129,13 +126,18 @@ const UploadInfer = () => {
     let totalFiles = results.length
     let successfulFiles = 0
     
-    results.forEach(result => {
-      if (result.success && result.summary) {
+    results.forEach((result) => {
+      if (result.success) {
         successfulFiles++
-        totalPanels += result.summary.total_panels
-        Object.keys(classDistribution).forEach(className => {
-          classDistribution[className] += result.summary.class_distribution[className] || 0
-        })
+        // Handle cases where summary might be missing or empty
+        if (result.summary && result.summary.total_panels !== undefined) {
+          totalPanels += result.summary.total_panels || 0
+          if (result.summary.class_distribution) {
+            Object.keys(classDistribution).forEach(className => {
+              classDistribution[className] += result.summary.class_distribution[className] || 0
+            })
+          }
+        }
       }
     })
     
@@ -149,7 +151,8 @@ const UploadInfer = () => {
       totalFiles,
       successfulFiles,
       classDistribution,
-      results
+      results,
+      hasResults: totalPanels > 0 || successfulFiles > 0
     }
   }
 
@@ -196,7 +199,6 @@ const UploadInfer = () => {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error('Download failed:', error)
       alert('Download failed. Please try again.')
     }
   }
@@ -314,12 +316,17 @@ const UploadInfer = () => {
                       {file.result && file.result.success && (
                         <div className="mt-1 flex items-center space-x-3 text-xs text-gray-600 dark:text-gray-300">
                           <span>Panels: {file.result.summary?.total_panels || 0}</span>
-                          <span>Defects: {Object.values(file.result.summary?.class_distribution || {}).reduce((a, b) => a + b, 0) - (file.result.summary?.class_distribution?.Clean || 0)}</span>
+                          <span>Defects: {file.result.summary?.class_distribution ? 
+                            Object.values(file.result.summary.class_distribution).reduce((a, b) => a + b, 0) - (file.result.summary.class_distribution?.Clean || 0)
+                            : 0}</span>
+                          {(!file.result.summary || file.result.summary.total_panels === 0) && (
+                            <span className="text-yellow-600 dark:text-yellow-400">No panels detected</span>
+                          )}
                         </div>
                       )}
                       {file.result && !file.result.success && (
                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                          Error: {file.result.error}
+                          Error: {file.result.error || 'Processing failed'}
                         </p>
                       )}
                     </div>
@@ -400,15 +407,69 @@ const UploadInfer = () => {
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                 Inference Results
               </h3>
-              <button className="btn-secondary text-sm inline-flex items-center">
-                <Download className="h-4 w-4 mr-2" />
-                Download Report
-              </button>
+              {inferenceResults.hasResults && (
+                <button className="btn-secondary text-sm inline-flex items-center">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Report
+                </button>
+              )}
             </div>
           </div>
           <div className="card-body">
-            {/* Summary stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {/* No panels detected message */}
+            {!inferenceResults.hasResults && inferenceResults.successfulFiles > 0 && (
+              <div className="text-center py-8">
+                <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
+                  <AlertTriangle className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  No Solar Panels Detected
+                </h4>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Processing completed successfully, but no solar panels were found in the uploaded images.
+                </p>
+                <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg max-w-md mx-auto">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">
+                    Common reasons:
+                  </p>
+                  <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 text-left">
+                    <li>• Images don't contain visible solar panels</li>
+                    <li>• Poor image quality or lighting conditions</li>
+                    <li>• Detection confidence thresholds are too strict</li>
+                    <li>• Images need to be preprocessed or cropped</li>
+                  </ul>
+                </div>
+                <div className="mt-6">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>Files processed:</strong> {inferenceResults.successfulFiles} of {inferenceResults.totalFiles}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Processing failed for all files */}
+            {inferenceResults.successfulFiles === 0 && inferenceResults.totalFiles > 0 && (
+              <div className="text-center py-8">
+                <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+                  <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Processing Failed
+                </h4>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  All uploaded files failed to process. Please check the file formats and try again.
+                </p>
+                <div className="mt-6">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>Files failed:</strong> {inferenceResults.totalFiles} of {inferenceResults.totalFiles}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Summary stats - only show when there are results */}
+            {inferenceResults.hasResults && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                   {inferenceResults.totalPanels}
@@ -442,8 +503,10 @@ const UploadInfer = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Defect breakdown */}
+            {/* Defect breakdown - only show when there are results */}
+            {inferenceResults.hasResults && (
             <div>
               <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
                 Defect Classification
@@ -514,6 +577,7 @@ const UploadInfer = () => {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Download All Reports */}
             {inferenceResults.results && inferenceResults.results.length > 0 && (

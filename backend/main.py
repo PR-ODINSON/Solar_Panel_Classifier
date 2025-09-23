@@ -38,8 +38,10 @@ TILE_SIZE = 512
 TILE_DIR = "temp_tiles"
 ANNOTATED_DIR = "temp_annotated"
 BOXES_DIR = "temp_boxes"
-CLASSIFIER_PATH = "../resnet50_pv_classifier.pth"
-YOLO_MODEL_PATH = "../runs/detect/train_yolo_v8_new_dataset4/weights/best.pt"
+# Get the project root directory (parent of backend)
+PROJECT_ROOT = Path(__file__).parent.parent
+CLASSIFIER_PATH = PROJECT_ROOT / "resnet50_pv_classifier.pth"
+YOLO_MODEL_PATH = PROJECT_ROOT / "runs" / "detect" / "train_yolo_v8_new_dataset4" / "weights" / "best.pt"
 CLASS_NAMES = ["Bird-drop", "Clean", "Dusty", "Physical-Damage"]
 
 # Setup directories
@@ -98,15 +100,20 @@ class SolarPanelProcessor:
     def load_models(self):
         """Load YOLO and ResNet models"""
         if self.yolo_model is None:
-            self.yolo_model = YOLO(YOLO_MODEL_PATH)
+            if not YOLO_MODEL_PATH.exists():
+                raise FileNotFoundError(f"YOLO model not found at: {YOLO_MODEL_PATH}")
+            self.yolo_model = YOLO(str(YOLO_MODEL_PATH))
             
         if self.classifier_model is None:
+            if not CLASSIFIER_PATH.exists():
+                raise FileNotFoundError(f"Classifier model not found at: {CLASSIFIER_PATH}")
+                
             self.classifier_model = resnet50()
             self.classifier_model.fc = torch.nn.Linear(
                 self.classifier_model.fc.in_features, len(CLASS_NAMES)
             )
             self.classifier_model.load_state_dict(
-                torch.load(CLASSIFIER_PATH, map_location="cpu"), strict=False
+                torch.load(str(CLASSIFIER_PATH), map_location="cpu"), strict=False
             )
             self.classifier_model.eval()
             self.classifier_model.to(self.device)
@@ -393,6 +400,7 @@ async def download_file(filename: str):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "models_loaded": processor.yolo_model is not None}
+
 
 if __name__ == "__main__":
     import uvicorn
