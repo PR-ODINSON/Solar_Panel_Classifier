@@ -8,33 +8,160 @@ import {
   TrendingUp,
   AlertTriangle,
   CheckCircle,
-  Clock
+  Clock,
+  Camera,
+  UserCheck,
+  RefreshCw
 } from 'lucide-react'
+import api from '../../api/apiClient.js'
+import { useToast } from '../../hooks/useToast.js'
+import ToastContainer from '../../components/ToastContainer.jsx'
 
 const AdminDashboard = () => {
+  const { toasts, removeToast, success, error, info } = useToast()
   const [dashboardData, setDashboardData] = useState({
-    totalPanelsMonitored: 1247,
-    defectivePanels: 23,
-    energyLossEstimation: '142.5 kWh',
-    criticalAlerts: 5,
-    pendingInspections: 8,
-    completedInspections: 156
+    totalPanels: 0,
+    totalDefects: 0,
+    openDefects: 0,
+    criticalDefects: 0,
+    totalInspections: 0,
+    completedInspections: 0,
+    pendingInspections: 0,
+    totalUsers: 0
   })
+  const [recentActivities, setRecentActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState(new Date())
 
-  // Mock data for recent activities
-  const recentActivities = [
-    { id: 1, type: 'inspection', message: 'Drone inspection completed for Zone A', time: '2 minutes ago' },
-    { id: 2, type: 'defect', message: 'Hot spot detected in Panel Array #23', time: '15 minutes ago' },
-    { id: 3, type: 'alert', message: 'Critical crack found in Section B', time: '1 hour ago' },
-    { id: 4, type: 'report', message: 'Daily inspection report generated', time: '2 hours ago' }
-  ]
+  // Fetch dashboard data
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch all required data in parallel
+      const [panelsRes, defectsRes, defectStatsRes, inspectionsRes, usersRes] = await Promise.all([
+        api.panels.list({ limit: 1 }), // Just get count
+        api.defects.list({ limit: 1 }), // Just get count
+        api.defects.getStats(),
+        api.inspections.list({ limit: 1 }), // Just get count
+        api.users.list({ limit: 1 }) // Just get count
+      ])
+      
+      // Update dashboard data
+      setDashboardData({
+        totalPanels: panelsRes.data?.pagination?.total || 0,
+        totalDefects: defectsRes.data?.pagination?.total || 0,
+        openDefects: defectStatsRes.data?.open || 0,
+        criticalDefects: defectStatsRes.data?.critical || 0,
+        totalInspections: inspectionsRes.data?.pagination?.total || 0,
+        completedInspections: inspectionsRes.data?.pagination?.total || 0,
+        pendingInspections: 0, // Calculate based on status if needed
+        totalUsers: usersRes.data?.pagination?.total || 0
+      })
+      
+      setLastUpdated(new Date())
+      
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err)
+      error('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  // Fetch recent activities
+  const fetchRecentActivities = async () => {
+    try {
+      // Get recent inspections and defects
+      const [inspectionsRes, defectsRes] = await Promise.all([
+        api.inspections.list({ limit: 5, sortBy: 'createdAt', sortOrder: 'desc' }),
+        api.defects.list({ limit: 5, sortBy: 'createdAt', sortOrder: 'desc' })
+      ])
+      
+      const activities = []
+      
+      // Add inspection activities
+      if (inspectionsRes.data?.inspections) {
+        inspectionsRes.data.inspections.forEach(inspection => {
+          activities.push({
+            id: `inspection-${inspection._id}`,
+            type: 'inspection',
+            message: `AI inspection completed for ${inspection.location?.site || 'unknown site'} - ${inspection.inspectionId}`,
+            time: getTimeAgo(inspection.createdAt),
+            timestamp: new Date(inspection.createdAt)
+          })
+        })
+      }
+      
+      // Add defect activities
+      if (defectsRes.data?.defects) {
+        defectsRes.data.defects.forEach(defect => {
+          const message = defect.assignedTo 
+            ? `Defect ${defect.defectId} assigned to ${defect.assignedTo.firstName} ${defect.assignedTo.lastName}`
+            : `New ${defect.defectType} defect detected - ${defect.defectId}`
+          
+          activities.push({
+            id: `defect-${defect._id}`,
+            type: defect.assignedTo ? 'assignment' : 'defect',
+            message,
+            time: getTimeAgo(defect.createdAt),
+            timestamp: new Date(defect.createdAt)
+          })
+        })
+      }
+      
+      // Sort by timestamp and take latest 8
+      activities.sort((a, b) => b.timestamp - a.timestamp)
+      setRecentActivities(activities.slice(0, 8))
+      
+    } catch (err) {
+      console.error('Error fetching recent activities:', err)
+    }
+  }
+  
+  // Helper function to format time ago
+  const getTimeAgo = (dateString) => {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60))
+    
+    if (diffInMinutes < 1) return 'Just now'
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`
+    
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    
+    const diffInDays = Math.floor(diffInHours / 24)
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+  }
+  
+  // Load data on component mount
+  useEffect(() => {
+    fetchDashboardData()
+    fetchRecentActivities()
+    
+    // Set up auto-refresh every 5 minutes
+    const interval = setInterval(() => {
+      fetchDashboardData()
+      fetchRecentActivities()
+    }, 5 * 60 * 1000)
+    
+    return () => clearInterval(interval)
+  }, [])
+  
+  // Manual refresh
+  const handleRefresh = async () => {
+    info('Refreshing dashboard data...')
+    await Promise.all([fetchDashboardData(), fetchRecentActivities()])
+    success('Dashboard data refreshed successfully')
+  }
 
   const quickActions = [
     {
       name: 'Upload & Infer',
       description: 'Upload drone images for AI analysis',
       href: '/upload-infer',
-      icon: Users,
+      icon: Camera,
       color: 'blue',
       count: null
     },
@@ -44,7 +171,7 @@ const AdminDashboard = () => {
       href: '/inspections',
       icon: FileText,
       color: 'green',
-      count: dashboardData.completedInspections
+      count: dashboardData.totalInspections
     },
     {
       name: 'Defect Management',
@@ -52,48 +179,48 @@ const AdminDashboard = () => {
       href: '/defects',
       icon: AlertTriangle,
       color: 'yellow',
-      count: dashboardData.defectivePanels
+      count: dashboardData.totalDefects
     },
     {
-      name: 'System Settings',
-      description: 'Configure system parameters',
-      href: '/settings',
-      icon: SettingsIcon,
+      name: 'User Management',
+      description: 'Manage system users and permissions',
+      href: '/users',
+      icon: Users,
       color: 'purple',
-      count: null
+      count: dashboardData.totalUsers
     }
   ]
 
   const stats = [
     {
       name: 'Total Panels Monitored',
-      value: dashboardData.totalPanelsMonitored,
-      change: '+24 new panels',
-      changeType: 'positive',
+      value: loading ? '...' : dashboardData.totalPanels,
+      change: `${dashboardData.totalPanels} panels in system`,
+      changeType: 'neutral',
       icon: TrendingUp,
       color: 'blue'
     },
     {
-      name: 'Defective Panels',
-      value: dashboardData.defectivePanels,
-      change: '+3 since yesterday',
-      changeType: 'negative',
+      name: 'Total Defects',
+      value: loading ? '...' : dashboardData.totalDefects,
+      change: `${dashboardData.openDefects} open defects`,
+      changeType: dashboardData.openDefects > 0 ? 'negative' : 'positive',
       icon: AlertTriangle,
       color: 'red'
     },
     {
-      name: 'Energy Loss Estimation',
-      value: dashboardData.energyLossEstimation,
-      change: '-5.2 kWh improvement',
+      name: 'Completed Inspections',
+      value: loading ? '...' : dashboardData.totalInspections,
+      change: `${dashboardData.totalInspections} total inspections`,
       changeType: 'positive',
-      icon: TrendingUp,
+      icon: CheckCircle,
       color: 'green'
     },
     {
-      name: 'Critical Alerts',
-      value: dashboardData.criticalAlerts,
-      change: '+2 new alerts',
-      changeType: 'negative',
+      name: 'Critical Defects',
+      value: loading ? '...' : dashboardData.criticalDefects,
+      change: `${dashboardData.criticalDefects} need immediate attention`,
+      changeType: dashboardData.criticalDefects > 0 ? 'negative' : 'positive',
       icon: AlertTriangle,
       color: 'yellow'
     }
@@ -113,10 +240,18 @@ const AdminDashboard = () => {
             </p>
           </div>
           <div className="flex items-center space-x-3">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="btn-secondary inline-flex items-center"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
             <div className="text-right">
               <p className="text-sm text-gray-500 dark:text-gray-400">Last updated</p>
               <p className="text-sm font-medium text-gray-900 dark:text-white">
-                {new Date().toLocaleString()}
+                {lastUpdated.toLocaleTimeString()}
               </p>
             </div>
           </div>
@@ -138,10 +273,12 @@ const AdminDashboard = () => {
                   </p>
                   <div className="flex items-center mt-1">
                     <TrendingUp className={`h-4 w-4 mr-1 ${
-                      stat.changeType === 'positive' ? 'text-green-500' : 'text-red-500'
+                      stat.changeType === 'positive' ? 'text-green-500' : 
+                      stat.changeType === 'negative' ? 'text-red-500' : 'text-gray-500'
                     }`} />
                     <span className={`text-sm ${
-                      stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                      stat.changeType === 'positive' ? 'text-green-600' : 
+                      stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'
                     }`}>
                       {stat.change}
                     </span>
@@ -226,13 +363,15 @@ const AdminDashboard = () => {
               {recentActivities.map((activity) => (
                 <div key={activity.id} className="flex items-start space-x-3">
                   <div className={`p-1 rounded-full mt-1 ${
-                    activity.type === 'inspection' ? 'bg-blue-100 text-blue-600' :
-                    activity.type === 'defect' ? 'bg-yellow-100 text-yellow-600' :
-                    activity.type === 'alert' ? 'bg-red-100 text-red-600' :
-                    'bg-gray-100 text-gray-600'
+                    activity.type === 'inspection' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400' :
+                    activity.type === 'defect' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400' :
+                    activity.type === 'assignment' ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' :
+                    activity.type === 'alert' ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400' :
+                    'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                   }`}>
-                    {activity.type === 'inspection' && <CheckCircle className="h-4 w-4" />}
+                    {activity.type === 'inspection' && <Camera className="h-4 w-4" />}
                     {activity.type === 'defect' && <AlertTriangle className="h-4 w-4" />}
+                    {activity.type === 'assignment' && <UserCheck className="h-4 w-4" />}
                     {activity.type === 'alert' && <AlertTriangle className="h-4 w-4" />}
                     {activity.type === 'report' && <FileText className="h-4 w-4" />}
                   </div>
@@ -262,31 +401,36 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div className="text-center">
               <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {dashboardData.pendingInspections}
+                {loading ? '...' : dashboardData.openDefects}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Pending inspections
+                Open defects
               </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                98.2%
+                {loading ? '...' : dashboardData.totalUsers}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Panel efficiency
+                System users
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                95.8%
+              <div className={`text-2xl font-semibold ${
+                dashboardData.criticalDefects === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {loading ? '...' : (dashboardData.criticalDefects === 0 ? 'All Clear' : `${dashboardData.criticalDefects} Critical`)}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                System availability
+                System status
               </div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }

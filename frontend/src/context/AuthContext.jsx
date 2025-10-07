@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import api, { getToken, removeToken } from '../api/apiClient.js'
+import api, { getToken, removeToken, isAuthenticated } from '../api/apiClient.js'
 
 // Auth context
 const AuthContext = createContext()
@@ -71,14 +71,50 @@ export const AuthProvider = ({ children }) => {
   // Check for existing token on app load
   useEffect(() => {
     const initAuth = async () => {
-      // Clear any existing invalid tokens first
-      removeToken()
-      
-      // Always start with unauthenticated state
-      dispatch({
-        type: 'AUTH_FAILURE',
-        payload: null
-      })
+      try {
+        dispatch({ type: 'AUTH_START' })
+        
+        // Quick check if user appears to be authenticated
+        if (isAuthenticated()) {
+          const token = getToken()
+          console.log('🔐 Found stored authentication token, validating...')
+          
+          try {
+            // Verify token is still valid by getting current user
+            const response = await api.auth.getCurrentUser()
+            const user = response.data
+            
+            console.log('✅ Authentication restored successfully for user:', user.username)
+            dispatch({
+              type: 'AUTH_SUCCESS',
+              payload: { user, token }
+            })
+          } catch (error) {
+            // Token is invalid or expired, clear it
+            console.error('❌ Token validation failed:', error.message)
+            removeToken()
+            dispatch({
+              type: 'AUTH_FAILURE',
+              payload: null
+            })
+          }
+        } else {
+          // No valid authentication data found
+          console.log('🔓 No stored authentication found, user needs to login')
+          dispatch({
+            type: 'AUTH_FAILURE',
+            payload: null
+          })
+        }
+      } catch (error) {
+        // Unexpected error during initialization
+        console.error('Auth initialization error:', error)
+        removeToken()
+        dispatch({
+          type: 'AUTH_FAILURE',
+          payload: null
+        })
+      }
     }
 
     initAuth()
@@ -116,6 +152,10 @@ export const AuthProvider = ({ children }) => {
       // Continue with logout even if backend call fails
       console.error('Logout error:', error)
     } finally {
+      // Clear stored tokens and user data
+      removeToken()
+      localStorage.removeItem('user')
+      localStorage.removeItem('refreshToken')
       dispatch({ type: 'AUTH_LOGOUT' })
     }
   }

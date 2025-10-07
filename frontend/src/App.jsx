@@ -7,6 +7,7 @@ import RoleBasedRedirect from './components/RoleBasedRedirect.jsx'
 
 // Authentication Pages
 import SignIn from './pages/SignIn.jsx'
+import Register from './pages/Register.jsx'
 import Unauthorized from './pages/Unauthorized.jsx'
 import NotFound from './pages/NotFound.jsx'
 
@@ -31,6 +32,7 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             
             {/* Root route with role-based redirect */}

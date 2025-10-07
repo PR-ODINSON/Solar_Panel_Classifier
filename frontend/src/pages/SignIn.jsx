@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { Eye, EyeOff, Sun, Moon, Zap } from 'lucide-react'
 
 const SignIn = () => {
   const [credentials, setCredentials] = useState({
-    username: '',
+    email: '',
     password: ''
   })
   const [showPassword, setShowPassword] = useState(false)
@@ -68,9 +68,9 @@ const SignIn = () => {
   // Demo credentials helper
   const fillDemoCredentials = (role) => {
     if (role === 'admin') {
-      setCredentials({ username: 'admin', password: 'admin123' })
+      setCredentials({ email: 'admin@insolare.ac.in', password: 'admin123' })
     } else {
-      setCredentials({ username: 'maintenance', password: 'maintenance123' })
+      setCredentials({ email: 'maintenance@solarpanel.com', password: 'maintenance123' })
     }
   }
 
@@ -113,20 +113,20 @@ const SignIn = () => {
                 </div>
               )}
 
-              {/* Username field */}
+              {/* Email field */}
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email Address
                 </label>
                 <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   required
                   className="input-field"
-                  placeholder="Enter your username"
-                  value={credentials.username}
+                  placeholder="Enter your email address"
+                  value={credentials.email}
                   onChange={handleInputChange}
                 />
               </div>
@@ -223,8 +223,18 @@ const SignIn = () => {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Registration Link */}
         <div className="text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Don't have an account?{' '}
+            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
+              Register here
+            </Link>
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-4">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             © 2024 O&M Module. All rights reserved.
           </p>

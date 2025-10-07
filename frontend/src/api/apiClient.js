@@ -9,9 +9,23 @@ const apiClient = axios.create({
 })
 
 // Token management
-const getToken = () => localStorage.getItem('token')
-const setToken = (token) => localStorage.setItem('token', token)
-const removeToken = () => localStorage.removeItem('token')
+const getToken = () => localStorage.getItem('accessToken')
+const setToken = (token) => localStorage.setItem('accessToken', token)
+const removeToken = () => {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+}
+
+const getRefreshToken = () => localStorage.getItem('refreshToken')
+const setRefreshToken = (token) => localStorage.setItem('refreshToken', token)
+
+// Check if user is authenticated (has valid token)
+const isAuthenticated = () => {
+  const token = getToken()
+  const user = localStorage.getItem('user')
+  return !!(token && user)
+}
 
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
@@ -27,18 +41,43 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Response interceptor to handle auth errors
+// Response interceptor to handle auth errors and token refresh
 apiClient.interceptors.response.use(
   (response) => {
     return response
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+
     // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        // Try to refresh the token
+        const refreshToken = getRefreshToken()
+        if (refreshToken) {
+          const response = await axios.post(`${API_CONFIG.BASE_URL}/api/auth/refresh`, {
+            refreshToken
+          })
+          
+          const { accessToken } = response.data.data
+          setToken(accessToken)
+          
+          // Retry the original request with new token
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`
+          return apiClient(originalRequest)
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError)
+      }
+
+      // If refresh fails or no refresh token, logout
       removeToken()
-      // Redirect to login page
       window.location.href = '/signin'
+      return Promise.reject(error)
     }
+    
     return Promise.reject(error)
   }
 )
@@ -55,72 +94,142 @@ const api = {
   // Authentication methods
   auth: {
     login: async (credentials) => {
-      // TODO: Update endpoint when backend auth is implemented
-      // For now, mock the authentication
       try {
-        // This will be replaced with actual backend call:
-        // const response = await apiClient.post('/auth/login', credentials)
+        const response = await apiClient.post('/api/auth/login', {
+          email: credentials.email,
+          password: credentials.password
+        })
         
-        // Mock authentication for development
-        const mockResponse = {
+        const { user, accessToken, refreshToken } = response.data.data
+        
+        // Store tokens and user data
+        setToken(accessToken)
+        setRefreshToken(refreshToken)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        return {
           data: {
-            token: 'mock-jwt-token-' + Date.now(),
+            token: accessToken,
             user: {
-              id: 1,
-              username: credentials.username,
-              email: credentials.username + '@example.com',
-              role: credentials.username === 'admin' ? 'admin' : 'maintenance_staff',
-              name: credentials.username === 'admin' ? 'System Administrator' : 'Maintenance Staff'
+              id: user._id,
+              username: user.username,
+              email: user.email,
+              role: user.role,
+              name: user.fullName || `${user.firstName} ${user.lastName}`,
+              firstName: user.firstName,
+              lastName: user.lastName
             }
           }
         }
-        
-        if (credentials.username && credentials.password) {
-          setToken(mockResponse.data.token)
-          return mockResponse
-        } else {
-          throw new Error('Invalid credentials')
-        }
       } catch (error) {
-        throw new Error('Authentication failed: ' + error.message)
+        console.error('Login error:', error)
+        const message = error.response?.data?.message || 'Authentication failed'
+        throw new Error(message)
       }
     },
     
     logout: async () => {
       try {
-        // TODO: Call backend logout endpoint when implemented
-        // await apiClient.post('/auth/logout')
+        const refreshToken = getRefreshToken()
+        if (refreshToken) {
+          await apiClient.post('/api/auth/logout', { refreshToken })
+        }
         removeToken()
         return { success: true }
       } catch (error) {
         // Even if backend call fails, remove local token
         removeToken()
-        throw error
+        console.error('Logout error:', error)
+        return { success: true }
       }
     },
     
+    register: async (userData) => {
+      try {
+        const response = await apiClient.post('/api/auth/register', userData)
+        
+        const { user, accessToken, refreshToken } = response.data.data
+        
+        // Store tokens and user data
+        setToken(accessToken)
+        setRefreshToken(refreshToken)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        return {
+          data: {
+            token: accessToken,
+            user: {
+              id: user._id,
+              username: user.username,
+              email: user.email,
+              role: user.role,
+              name: user.fullName || `${user.firstName} ${user.lastName}`,
+              firstName: user.firstName,
+              lastName: user.lastName
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Registration error:', error)
+        const message = error.response?.data?.message || 'Registration failed'
+        const errors = error.response?.data?.errors || []
+        throw new Error(JSON.stringify({ message, errors }))
+      }
+    },
+
     getCurrentUser: async () => {
       try {
-        // TODO: Replace with actual backend call when implemented
-        // const response = await apiClient.get('/auth/me')
-        
-        // Mock current user for development
+        // Check if we have a valid token first
         const token = getToken()
         if (!token) {
-          throw new Error('No token found')
+          throw new Error('No authentication token found')
+        }
+
+        // First try to get user from localStorage
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser)
+            // Validate that the stored user has required fields
+            if (user._id && user.username && user.email && user.role) {
+              return {
+                data: {
+                  id: user._id,
+                  username: user.username,
+                  email: user.email,
+                  role: user.role,
+                  name: user.fullName || `${user.firstName} ${user.lastName}`,
+                  firstName: user.firstName,
+                  lastName: user.lastName
+                }
+              }
+            }
+          } catch (parseError) {
+            console.warn('Invalid stored user data, fetching from server')
+            localStorage.removeItem('user')
+          }
         }
         
-        // Parse mock user from token (in real app, backend would validate token)
-        const mockUser = {
-          id: 1,
-          username: token.includes('admin') ? 'admin' : 'maintenance',
-          email: 'user@example.com',
-          role: token.includes('admin') ? 'admin' : 'maintenance_staff',
-          name: token.includes('admin') ? 'System Administrator' : 'Maintenance Staff'
-        }
+        // If no valid stored user, fetch from backend
+        const response = await apiClient.get('/api/auth/me')
+        const { user } = response.data.data
         
-        return { data: mockUser }
+        // Store user data
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        return {
+          data: {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            name: user.fullName || `${user.firstName} ${user.lastName}`,
+            firstName: user.firstName,
+            lastName: user.lastName
+          }
+        }
       } catch (error) {
+        console.error('Get current user error:', error)
         removeToken()
         throw error
       }
@@ -165,191 +274,508 @@ const api = {
     check: () => apiClient.get('/health')
   },
 
-  // Mock API methods for development (TODO: Replace with real backend calls)
+  // Real API methods for inspections (connected to MongoDB backend)
   inspections: {
     list: async (params = {}) => {
-      // Mock data for development
-      const mockInspections = [
-        {
-          id: 1,
-          title: 'Monthly Inspection - Block A',
-          status: 'completed',
-          date: '2024-01-15',
-          panels_count: 150,
-          defects_found: 12,
-          inspector: 'John Doe',
-          ai_confidence: 0.94
-        },
-        {
-          id: 2,
-          title: 'Routine Check - Block B',
-          status: 'in_progress',
-          date: '2024-01-20',
-          panels_count: 200,
-          defects_found: 8,
-          inspector: 'Jane Smith',
-          ai_confidence: 0.89
-        }
-      ]
-      
-      return { data: { inspections: mockInspections, total: mockInspections.length } }
+      try {
+        const response = await apiClient.get('/api/inspections', { params })
+        return response.data
+      } catch (error) {
+        console.error('Error fetching inspections:', error)
+        return { data: { inspections: [], total: 0 } }
+      }
     },
 
     get: async (id) => {
-      const mockInspection = {
-        id: parseInt(id),
-        title: 'Monthly Inspection - Block A',
-        description: 'Comprehensive inspection of solar panels in Block A',
-        status: 'completed',
-        date: '2024-01-15',
-        panels_count: 150,
-        defects_found: 12,
-        inspector: 'John Doe',
-        ai_summary: 'AI detected 12 defects across 150 panels. Most common issues: dust accumulation (6), bird droppings (4), minor physical damage (2).',
-        defects: [
-          { id: 1, panel_id: 'PA001', type: 'Dusty', severity: 'Medium' },
-          { id: 2, panel_id: 'PA002', type: 'Bird-drop', severity: 'Low' }
-        ]
+      try {
+        const response = await apiClient.get(`/api/inspections/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching inspection:', error)
+        throw error
       }
-      
-      return { data: mockInspection }
+    },
+
+    create: async (inspectionData) => {
+      try {
+        const response = await apiClient.post('/api/inspections', inspectionData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating inspection:', error)
+        throw error
+      }
+    },
+
+    update: async (id, updates) => {
+      try {
+        const response = await apiClient.put(`/api/inspections/${id}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating inspection:', error)
+        throw error
+      }
+    },
+
+    delete: async (id) => {
+      try {
+        const response = await apiClient.delete(`/api/inspections/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting inspection:', error)
+        throw error
+      }
+    },
+
+    getStats: async () => {
+      try {
+        const response = await apiClient.get('/api/inspections/stats')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching inspection stats:', error)
+        throw error
+      }
+    },
+
+    getOverdue: async () => {
+      try {
+        const response = await apiClient.get('/api/inspections/status/overdue')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching overdue inspections:', error)
+        throw error
+      }
+    },
+
+    delete: async (id) => {
+      try {
+        const response = await apiClient.delete(`/api/inspections/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting inspection:', error)
+        throw error
+      }
+    },
+
+    getCritical: async () => {
+      try {
+        const response = await apiClient.get('/api/inspections/priority/critical')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching critical inspections:', error)
+        throw error
+      }
     }
   },
 
   defects: {
     list: async (params = {}) => {
-      const mockDefects = [
-        {
-          id: 1,
-          panel_id: 'PA001',
-          type: 'Dusty',
-          severity: 'Medium',
-          status: 'Open',
-          description: 'Heavy dust accumulation affecting efficiency',
-          created_date: '2024-01-15',
-          assigned_to: 'John Doe'
-        },
-        {
-          id: 2,
-          panel_id: 'PA002',
-          type: 'Bird-drop',
-          severity: 'Low',
-          status: 'In Progress',
-          description: 'Bird droppings on panel surface',
-          created_date: '2024-01-16',
-          assigned_to: 'Jane Smith'
-        }
-      ]
-      
-      return { data: { defects: mockDefects, total: mockDefects.length } }
+      try {
+        const response = await apiClient.get('/api/defects', { params })
+        return response.data
+      } catch (error) {
+        console.error('Error fetching defects:', error)
+        return { data: { defects: [], total: 0 } }
+      }
     },
 
     get: async (id) => {
-      const mockDefect = {
-        id: parseInt(id),
-        panel_id: 'PA001',
-        type: 'Dusty',
-        severity: 'Medium',
-        status: 'Open',
-        description: 'Heavy dust accumulation affecting panel efficiency by approximately 15%',
-        created_date: '2024-01-15',
-        assigned_to: 'John Doe',
-        location: { lat: 40.7128, lng: -74.0060 },
-        images: ['/outputs/PA001_defect.jpg'],
-        maintenance_notes: ''
+      try {
+        const response = await apiClient.get(`/api/defects/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching defect:', error)
+        throw error
       }
-      
-      return { data: mockDefect }
+    },
+
+    create: async (defectData) => {
+      try {
+        const response = await apiClient.post('/api/defects', defectData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating defect:', error)
+        throw error
+      }
     },
 
     update: async (id, updates) => {
-      // Mock update response
-      return { data: { id: parseInt(id), ...updates, updated_at: new Date().toISOString() } }
+      try {
+        const response = await apiClient.put(`/api/defects/${id}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating defect:', error)
+        throw error
+      }
     },
 
-    statistics: async () => {
-      const mockStats = {
-        by_type: {
-          'Dusty': 45,
-          'Bird-drop': 23,
-          'Physical-Damage': 12,
-          'Clean': 420
-        },
-        by_severity: {
-          'Low': 35,
-          'Medium': 30,
-          'High': 15,
-          'Critical': 5
-        },
-        trends: {
-          weekly: [12, 15, 8, 20, 18, 14, 16],
-          monthly: [45, 52, 38, 60, 55, 48, 51]
-        }
+    addNote: async (id, noteText) => {
+      try {
+        const response = await apiClient.post(`/api/defects/${id}/notes`, { text: noteText })
+        return response.data
+      } catch (error) {
+        console.error('Error adding defect note:', error)
+        throw error
       }
-      
-      return { data: mockStats }
+    },
+
+    getStats: async () => {
+      try {
+        const response = await apiClient.get('/api/defects/stats')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching defect stats:', error)
+        throw error
+      }
+    },
+
+    getCritical: async () => {
+      try {
+        const response = await apiClient.get('/api/defects/priority/critical')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching critical defects:', error)
+        throw error
+      }
+    },
+
+    getOverdue: async () => {
+      try {
+        const response = await apiClient.get('/api/defects/status/overdue')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching overdue defects:', error)
+        throw error
+      }
     }
   },
 
   analytics: {
     dashboard: async (role) => {
-      const mockDashboard = {
-        total_panels: 500,
-        active_panels: 485,
-        defective_count: 15,
-        energy_loss: 12.5,
-        alerts: [
-          { id: 1, type: 'critical', message: '3 panels with critical defects', time: '2024-01-20T10:30:00Z' },
-          { id: 2, type: 'warning', message: 'Scheduled maintenance due for Block C', time: '2024-01-20T09:15:00Z' }
-        ],
-        recent_inspections: 8,
-        pending_tasks: role === 'admin' ? 12 : 5
+      try {
+        // Get real data from inspections
+        const inspectionsResponse = await api.inspections.list()
+        const inspections = inspectionsResponse.data.inspections || []
+        
+        const dashboard = {
+          total_panels: 0, // Will be calculated from inspection reports
+          active_panels: 0,
+          defective_count: 0,
+          energy_loss: 0,
+          alerts: [],
+          recent_inspections: inspections.length,
+          pending_tasks: role === 'admin' ? 0 : 0 // No pending tasks without database
+        }
+        
+        return { data: dashboard }
+      } catch (error) {
+        console.error('Error fetching dashboard analytics:', error)
+        // Return minimal data on error
+        return { 
+          data: {
+            total_panels: 0,
+            active_panels: 0,
+            defective_count: 0,
+            energy_loss: 0,
+            alerts: [],
+            recent_inspections: 0,
+            pending_tasks: 0
+          }
+        }
       }
-      
-      return { data: mockDashboard }
     },
 
     panelHealth: async () => {
-      const mockHealthData = {
-        efficiency_trends: [
-          { date: '2024-01-01', efficiency: 95.2 },
-          { date: '2024-01-02', efficiency: 94.8 },
-          { date: '2024-01-03', efficiency: 94.5 },
-          { date: '2024-01-04', efficiency: 93.9 },
-          { date: '2024-01-05', efficiency: 94.1 }
-        ],
-        health_distribution: {
-          excellent: 420,
-          good: 65,
-          fair: 12,
-          poor: 3
+      try {
+        // TODO: Extract health data from Excel reports
+        // For now, return empty health data
+        const healthData = {
+          efficiency_trends: [],
+          health_distribution: {
+            excellent: 0,
+            good: 0,
+            fair: 0,
+            poor: 0
+          }
         }
+        
+        return { data: healthData }
+      } catch (error) {
+        console.error('Error fetching panel health analytics:', error)
+        throw error
       }
-      
-      return { data: mockHealthData }
+    }
+  },
+
+  // Maintenance task management
+  maintenance: {
+    list: async (params = {}) => {
+      try {
+        const response = await apiClient.get('/api/maintenance', { params })
+        return response.data
+      } catch (error) {
+        console.error('Error fetching maintenance tasks:', error)
+        return { data: { tasks: [], total: 0 } }
+      }
+    },
+
+    get: async (id) => {
+      try {
+        const response = await apiClient.get(`/api/maintenance/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching maintenance task:', error)
+        throw error
+      }
+    },
+
+    create: async (taskData) => {
+      try {
+        const response = await apiClient.post('/api/maintenance', taskData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating maintenance task:', error)
+        throw error
+      }
+    },
+
+    update: async (id, updates) => {
+      try {
+        const response = await apiClient.put(`/api/maintenance/${id}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating maintenance task:', error)
+        throw error
+      }
+    },
+
+    updateStatus: async (id, status) => {
+      try {
+        const response = await apiClient.put(`/api/maintenance/${id}/status`, { status })
+        return response.data
+      } catch (error) {
+        console.error('Error updating task status:', error)
+        throw error
+      }
+    },
+
+    addNote: async (id, noteText, type = 'general') => {
+      try {
+        const response = await apiClient.post(`/api/maintenance/${id}/notes`, { text: noteText, type })
+        return response.data
+      } catch (error) {
+        console.error('Error adding maintenance task note:', error)
+        throw error
+      }
+    },
+
+    getStats: async () => {
+      try {
+        const response = await apiClient.get('/api/maintenance/stats')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching maintenance stats:', error)
+        throw error
+      }
+    },
+
+    getOverdue: async () => {
+      try {
+        const response = await apiClient.get('/api/maintenance/status/overdue')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching overdue tasks:', error)
+        throw error
+      }
+    },
+
+    getHighPriority: async () => {
+      try {
+        const response = await apiClient.get('/api/maintenance/priority/high')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching high priority tasks:', error)
+        throw error
+      }
+    },
+
+    delete: async (id) => {
+      try {
+        const response = await apiClient.delete(`/api/maintenance/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting maintenance task:', error)
+        throw error
+      }
+    }
+  },
+
+  // User management (Admin only)
+  users: {
+    list: async (params = {}) => {
+      try {
+        const response = await apiClient.get('/api/users', { params })
+        return response.data
+      } catch (error) {
+        console.error('Error fetching users:', error)
+        return { data: { users: [], total: 0 } }
+      }
+    },
+
+    get: async (id) => {
+      try {
+        const response = await apiClient.get(`/api/users/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching user:', error)
+        throw error
+      }
+    },
+
+    create: async (userData) => {
+      try {
+        const response = await apiClient.post('/api/users', userData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating user:', error)
+        throw error
+      }
+    },
+
+    update: async (id, updates) => {
+      try {
+        const response = await apiClient.put(`/api/users/${id}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating user:', error)
+        throw error
+      }
+    },
+
+    updateStatus: async (id, isActive) => {
+      try {
+        const response = await apiClient.put(`/api/users/${id}/status`, { isActive })
+        return response.data
+      } catch (error) {
+        console.error('Error updating user status:', error)
+        throw error
+      }
+    },
+
+    resetPassword: async (id, newPassword) => {
+      try {
+        const response = await apiClient.put(`/api/users/${id}/password`, { newPassword })
+        return response.data
+      } catch (error) {
+        console.error('Error resetting password:', error)
+        throw error
+      }
+    },
+
+    delete: async (id) => {
+      try {
+        const response = await apiClient.delete(`/api/users/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting user:', error)
+        throw error
+      }
+    },
+
+    getStats: async () => {
+      try {
+        const response = await apiClient.get('/api/users/stats')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching user stats:', error)
+        throw error
+      }
+    },
+
+    getMaintenanceStaff: async () => {
+      try {
+        const response = await apiClient.get('/api/users/role/maintenance-staff')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching maintenance staff:', error)
+        throw error
+      }
     }
   },
 
   panels: {
-    list: async () => {
-      const mockPanels = Array.from({ length: 20 }, (_, i) => ({
-        id: `PA${String(i + 1).padStart(3, '0')}`,
-        status: Math.random() > 0.1 ? 'active' : 'defective',
-        efficiency: Math.round((Math.random() * 10 + 90) * 100) / 100,
-        location: {
-          lat: 40.7128 + (Math.random() - 0.5) * 0.01,
-          lng: -74.0060 + (Math.random() - 0.5) * 0.01
-        },
-        installation_date: '2023-06-15',
-        last_inspection: '2024-01-15'
-      }))
-      
-      return { data: mockPanels }
+    list: async (params = {}) => {
+      try {
+        const response = await apiClient.get('/api/panels', { params })
+        return response.data
+      } catch (error) {
+        console.error('Error fetching panels:', error)
+        return { data: { panels: [], total: 0 } }
+      }
+    },
+
+    get: async (id) => {
+      try {
+        const response = await apiClient.get(`/api/panels/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching panel:', error)
+        throw error
+      }
+    },
+
+    create: async (panelData) => {
+      try {
+        const response = await apiClient.post('/api/panels', panelData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating panel:', error)
+        throw error
+      }
+    },
+
+    update: async (id, updates) => {
+      try {
+        const response = await apiClient.put(`/api/panels/${id}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating panel:', error)
+        throw error
+      }
+    },
+
+    getStats: async () => {
+      try {
+        const response = await apiClient.get('/api/panels/stats')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching panel stats:', error)
+        throw error
+      }
+    },
+
+    getBySite: async (site) => {
+      try {
+        const response = await apiClient.get(`/api/panels/site/${site}`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching panels by site:', error)
+        throw error
+      }
+    },
+
+    getNeedingInspection: async () => {
+      try {
+        const response = await apiClient.get('/api/panels/status/needing-inspection')
+        return response.data
+      } catch (error) {
+        console.error('Error fetching panels needing inspection:', error)
+        throw error
+      }
     }
   }
 }
 
 // Export token management functions for use in auth context
-export { getToken, setToken, removeToken }
+export { getToken, setToken, removeToken, getRefreshToken, setRefreshToken, isAuthenticated }
 
 export default api

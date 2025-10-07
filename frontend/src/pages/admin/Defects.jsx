@@ -1,123 +1,312 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, Filter, AlertTriangle, Thermometer, FileText, MapPin, Calendar, Eye, Wrench } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Search, Filter, AlertTriangle, Thermometer, FileText, MapPin, Calendar, Eye, Wrench, Plus, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
+import api from '../../api/apiClient.js'
+import { useToast } from '../../hooks/useToast.js'
+import ToastContainer from '../../components/ToastContainer.jsx'
 
 const Defects = () => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
+  const { toasts, removeToast, success, error, warning } = useToast()
+  const [searchParams] = useSearchParams()
+  const inspectionFilter = searchParams.get('inspection')
+  
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [filterSeverity, setFilterSeverity] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
-
-  // Mock defect data
-  const defects = [
-    {
-      id: 1,
-      defectId: 'DEF-2024-001',
-      type: 'crack',
-      severity: 'high',
-      status: 'pending',
-      location: 'Panel A-15',
-      coordinates: 'Row 3, Column 15',
-      detectedDate: '2024-01-20T10:30:00Z',
-      inspectionId: 'INS-2024-001',
-      description: 'Significant crack detected across panel surface affecting cell performance',
-      energyImpact: '12.5 kWh/day',
-      priority: 'immediate',
-      assignedTo: null,
-      estimatedRepairTime: '2 hours',
-      repairCost: '$450'
-    },
-    {
-      id: 2,
-      defectId: 'DEF-2024-002',
-      type: 'hotspot',
-      severity: 'medium',
-      status: 'in_progress',
-      location: 'Panel A-23',
-      coordinates: 'Row 5, Column 23',
-      detectedDate: '2024-01-20T10:30:00Z',
-      inspectionId: 'INS-2024-001',
-      description: 'Thermal anomaly detected in corner cell due to poor connection',
-      energyImpact: '3.2 kWh/day',
-      priority: 'high',
-      assignedTo: 'John Smith',
-      estimatedRepairTime: '1 hour',
-      repairCost: '$180'
-    },
-    {
-      id: 3,
-      defectId: 'DEF-2024-003',
-      type: 'dust',
-      severity: 'low',
-      status: 'completed',
-      location: 'Panel A-45',
-      coordinates: 'Row 8, Column 45',
-      detectedDate: '2024-01-19T14:20:00Z',
-      inspectionId: 'INS-2024-002',
-      description: 'Heavy dust accumulation affecting light absorption',
-      energyImpact: '1.8 kWh/day',
-      priority: 'medium',
-      assignedTo: 'Jane Wilson',
-      estimatedRepairTime: '30 minutes',
-      repairCost: '$50',
-      completedDate: '2024-01-21T09:15:00Z'
-    },
-    {
-      id: 4,
-      defectId: 'DEF-2024-004',
-      type: 'shading',
-      severity: 'medium',
-      status: 'scheduled',
-      location: 'Panel B-12',
-      coordinates: 'Row 2, Column 12',
-      detectedDate: '2024-01-19T14:20:00Z',
-      inspectionId: 'INS-2024-002',
-      description: 'Permanent shading from nearby vegetation growth',
-      energyImpact: '5.7 kWh/day',
-      priority: 'high',
-      assignedTo: 'Mike Johnson',
-      estimatedRepairTime: '3 hours',
-      repairCost: '$320',
-      scheduledDate: '2024-01-25T08:00:00Z'
-    },
-    {
-      id: 5,
-      defectId: 'DEF-2024-005',
-      type: 'pid',
-      severity: 'high',
-      status: 'pending',
-      location: 'Panel C-08',
-      coordinates: 'Row 1, Column 8',
-      detectedDate: '2024-01-18T11:45:00Z',
-      inspectionId: 'INS-2024-004',
-      description: 'Potential Induced Degradation affecting multiple cells',
-      energyImpact: '18.3 kWh/day',
-      priority: 'immediate',
-      assignedTo: null,
-      estimatedRepairTime: '4 hours',
-      repairCost: '$850'
-    }
-  ]
-
-  const filteredDefects = defects.filter(defect => {
-    const matchesSearch = defect.defectId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         defect.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         defect.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = filterType === 'all' || defect.type === filterType
-    const matchesSeverity = filterSeverity === 'all' || defect.severity === filterSeverity
-    const matchesStatus = filterStatus === 'all' || defect.status === filterStatus
-    return matchesSearch && matchesType && matchesSeverity && matchesStatus
+  const [defects, setDefects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState(null)
+  const [stats, setStats] = useState({})
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10
   })
+  const [maintenanceStaff, setMaintenanceStaff] = useState([])
+  const [inspectionInfo, setInspectionInfo] = useState(null)
+
+  // Fetch defects from API
+  const fetchDefects = async (params = {}) => {
+    try {
+      setLoading(true)
+      setErrorState(null)
+      
+      const queryParams = {
+        page: pagination.current,
+        limit: pagination.limit,
+        search: searchTerm || undefined,
+        status: filterStatus !== 'all' ? filterStatus : undefined,
+        severity: filterSeverity !== 'all' ? filterSeverity : undefined,
+        defectType: filterType !== 'all' ? filterType : undefined,
+        inspection: inspectionFilter || undefined,
+        ...params
+      }
+
+      // Remove undefined values
+      Object.keys(queryParams).forEach(key => 
+        queryParams[key] === undefined && delete queryParams[key]
+      )
+
+      const response = await api.defects.list(queryParams)
+      
+      if (response.success) {
+        setDefects(response.data.defects || [])
+        setPagination(response.data.pagination || pagination)
+      } else {
+        setErrorState('Failed to fetch defects')
+        error('Failed to fetch defects')
+      }
+    } catch (err) {
+      console.error('Error fetching defects:', err)
+      setErrorState('Failed to fetch defects')
+      error('Failed to fetch defects')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch defect statistics
+  const fetchStats = async () => {
+    try {
+      const response = await api.defects.getStats()
+      if (response.success) {
+        setStats(response.data)
+      }
+    } catch (err) {
+      console.error('Error fetching defect stats:', err)
+    }
+  }
+
+  // Fetch maintenance staff for assignment
+  const fetchMaintenanceStaff = async () => {
+    try {
+      if (isAdmin()) {
+        const response = await api.users.getMaintenanceStaff()
+        if (response.success) {
+          setMaintenanceStaff(response.data.users || [])
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching maintenance staff:', err)
+    }
+  }
+
+  // Fetch inspection info when filtering by inspection
+  const fetchInspectionInfo = async (inspectionId) => {
+    try {
+      const response = await api.inspections.get(inspectionId)
+      if (response.success) {
+        setInspectionInfo(response.data.inspection)
+      }
+    } catch (err) {
+      console.error('Error fetching inspection info:', err)
+    }
+  }
+
+  // Handle defect assignment
+  const handleAssignDefect = async (defectId, assignedToId) => {
+    try {
+      const response = await api.defects.update(defectId, { assignedTo: assignedToId })
+      if (response.success) {
+        // Refresh defects list
+        fetchDefects()
+      }
+    } catch (err) {
+      console.error('Error assigning defect:', err)
+      error('Failed to assign defect')
+    }
+  }
+
+  // Handle status update
+  const handleStatusUpdate = async (defectId, newStatus) => {
+    try {
+      const response = await api.defects.update(defectId, { status: newStatus })
+      if (response.success) {
+        // Refresh defects list
+        fetchDefects()
+      }
+    } catch (err) {
+      console.error('Error updating defect status:', err)
+      error('Failed to update defect status')
+    }
+  }
+
+  // Create maintenance task from defect
+  const handleCreateMaintenanceTask = async (defect) => {
+    try {
+      const taskData = {
+        title: `Repair ${defect.defectType.replace('_', ' ')} defect - ${defect.defectId}`,
+        description: `${defect.description}\n\nDefect Details:\n- Type: ${defect.defectType}\n- Severity: ${defect.severity}\n- Location: ${defect.location?.description || 'N/A'}\n- Detected: ${new Date(defect.detectedDate).toLocaleDateString()}`,
+        type: getMaintenanceType(defect.defectType),
+        category: getMaintenanceCategory(defect.defectType),
+        priority: defect.priority,
+      status: 'pending',
+        panel: defect.panel?._id,
+        relatedDefect: defect._id,
+        estimatedDuration: getEstimatedDuration(defect.defectType, defect.severity),
+        estimatedCost: 0, // Cost estimation not implemented
+        requiredSkills: getRequiredSkills(defect.defectType),
+        scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
+        dueDate: new Date(Date.now() + getDueDateOffset(defect.priority) * 24 * 60 * 60 * 1000)
+      }
+
+      const response = await api.maintenance.create(taskData)
+      if (response.success) {
+        success(`Maintenance task created successfully! Task ID: ${response.data.task.taskId}`)
+        // Update defect status to indicate task created
+        await api.defects.update(defect._id, { status: 'in_progress' })
+        fetchDefects()
+      }
+    } catch (err) {
+      console.error('Error creating maintenance task:', err)
+      error('Failed to create maintenance task')
+    }
+  }
+
+  // Helper functions for maintenance task creation
+  const getMaintenanceType = (defectType) => {
+    const mapping = {
+      'crack': 'repair',
+      'hotspot': 'repair',
+      'soiling': 'cleaning',
+      'shading': 'corrective',
+      'corrosion': 'repair',
+      'delamination': 'replacement',
+      'discoloration': 'inspection',
+      'burn_mark': 'repair',
+      'cell_failure': 'replacement',
+      'junction_box_issue': 'repair',
+      'wiring_issue': 'repair',
+      'mounting_issue': 'repair',
+      'glass_breakage': 'replacement',
+      'frame_damage': 'repair'
+    }
+    return mapping[defectType] || 'corrective'
+  }
+
+  const getMaintenanceCategory = (defectType) => {
+    const mapping = {
+      'crack': 'mechanical',
+      'hotspot': 'electrical',
+      'soiling': 'cleaning',
+      'shading': 'mechanical',
+      'corrosion': 'mechanical',
+      'delamination': 'mechanical',
+      'discoloration': 'inspection',
+      'burn_mark': 'electrical',
+      'cell_failure': 'electrical',
+      'junction_box_issue': 'electrical',
+      'wiring_issue': 'electrical',
+      'mounting_issue': 'mechanical',
+      'glass_breakage': 'mechanical',
+      'frame_damage': 'mechanical'
+    }
+    return mapping[defectType] || 'other'
+  }
+
+  const getEstimatedDuration = (defectType, severity) => {
+    const baseDurations = {
+      'crack': 120,
+      'hotspot': 90,
+      'soiling': 30,
+      'shading': 180,
+      'corrosion': 150,
+      'delamination': 240,
+      'discoloration': 60,
+      'burn_mark': 120,
+      'cell_failure': 300,
+      'junction_box_issue': 180,
+      'wiring_issue': 120,
+      'mounting_issue': 240,
+      'glass_breakage': 180,
+      'frame_damage': 120
+    }
+    
+    const multipliers = {
+      'low': 0.8,
+      'medium': 1.0,
+      'high': 1.5,
+      'critical': 2.0
+    }
+    
+    return Math.round((baseDurations[defectType] || 120) * (multipliers[severity] || 1.0))
+  }
+
+  const getRequiredSkills = (defectType) => {
+    const skillMapping = {
+      'crack': ['panel_repair', 'safety'],
+      'hotspot': ['electrical', 'thermal_imaging', 'safety'],
+      'soiling': ['cleaning', 'safety'],
+      'shading': ['mechanical', 'installation'],
+      'corrosion': ['panel_repair', 'chemical_handling', 'safety'],
+      'delamination': ['panel_replacement', 'installation', 'safety'],
+      'discoloration': ['inspection', 'diagnostics'],
+      'burn_mark': ['electrical', 'panel_repair', 'safety'],
+      'cell_failure': ['electrical', 'panel_replacement', 'safety'],
+      'junction_box_issue': ['electrical', 'safety'],
+      'wiring_issue': ['electrical', 'safety'],
+      'mounting_issue': ['mechanical', 'installation', 'safety'],
+      'glass_breakage': ['panel_replacement', 'safety'],
+      'frame_damage': ['mechanical', 'panel_repair', 'safety']
+    }
+    return skillMapping[defectType] || ['general_maintenance']
+  }
+
+  const getDueDateOffset = (priority) => {
+    const offsets = {
+      'critical': 1,
+      'high': 3,
+      'medium': 7,
+      'low': 14
+    }
+    return offsets[priority] || 7
+  }
+
+  // Initial load
+  useEffect(() => {
+    fetchDefects()
+    fetchStats()
+    fetchMaintenanceStaff()
+    
+    // Fetch inspection info if filtering by inspection
+    if (inspectionFilter) {
+      fetchInspectionInfo(inspectionFilter)
+    }
+  }, [inspectionFilter])
+
+  // Refetch when filters change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchDefects({ page: 1 })
+    }, 300) // Debounce search
+
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm, filterType, filterSeverity, filterStatus])
+
+  // Use actual defects data (filtering is done server-side)
+  const displayDefects = defects
 
   const getDefectIcon = (type) => {
     switch (type) {
       case 'crack': return <AlertTriangle className="h-5 w-5" />
       case 'hotspot': return <Thermometer className="h-5 w-5" />
-      case 'dust': return <FileText className="h-5 w-5" />
+      case 'soiling': return <FileText className="h-5 w-5" />
       case 'shading': return <FileText className="h-5 w-5" />
-      case 'pid': return <AlertTriangle className="h-5 w-5" />
+      case 'corrosion': return <AlertTriangle className="h-5 w-5" />
+      case 'delamination': return <AlertTriangle className="h-5 w-5" />
+      case 'discoloration': return <FileText className="h-5 w-5" />
+      case 'burn_mark': return <AlertTriangle className="h-5 w-5" />
+      case 'cell_failure': return <AlertTriangle className="h-5 w-5" />
+      case 'junction_box_issue': return <AlertTriangle className="h-5 w-5" />
+      case 'wiring_issue': return <AlertTriangle className="h-5 w-5" />
+      case 'mounting_issue': return <AlertTriangle className="h-5 w-5" />
+      case 'glass_breakage': return <AlertTriangle className="h-5 w-5" />
+      case 'frame_damage': return <AlertTriangle className="h-5 w-5" />
+      case 'other': return <FileText className="h-5 w-5" />
       default: return <AlertTriangle className="h-5 w-5" />
     }
   }
@@ -126,15 +315,25 @@ const Defects = () => {
     switch (type) {
       case 'crack': return 'text-red-600 bg-red-100'
       case 'hotspot': return 'text-orange-600 bg-orange-100'
-      case 'dust': return 'text-yellow-600 bg-yellow-100'
+      case 'soiling': return 'text-yellow-600 bg-yellow-100'
       case 'shading': return 'text-purple-600 bg-purple-100'
-      case 'pid': return 'text-pink-600 bg-pink-100'
+      case 'corrosion': return 'text-red-600 bg-red-100'
+      case 'delamination': return 'text-pink-600 bg-pink-100'
+      case 'discoloration': return 'text-yellow-600 bg-yellow-100'
+      case 'burn_mark': return 'text-red-600 bg-red-100'
+      case 'cell_failure': return 'text-red-600 bg-red-100'
+      case 'junction_box_issue': return 'text-orange-600 bg-orange-100'
+      case 'wiring_issue': return 'text-orange-600 bg-orange-100'
+      case 'mounting_issue': return 'text-purple-600 bg-purple-100'
+      case 'glass_breakage': return 'text-red-600 bg-red-100'
+      case 'frame_damage': return 'text-gray-600 bg-gray-100'
       default: return 'text-gray-600 bg-gray-100'
     }
   }
 
   const getSeverityColor = (severity) => {
     switch (severity) {
+      case 'critical': return 'text-red-800 bg-red-200'
       case 'high': return 'text-red-700 bg-red-200'
       case 'medium': return 'text-yellow-700 bg-yellow-200'
       case 'low': return 'text-green-700 bg-green-200'
@@ -144,30 +343,24 @@ const Defects = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending': return 'text-gray-700 bg-gray-200'
+      case 'open': return 'text-gray-700 bg-gray-200'
       case 'in_progress': return 'text-blue-700 bg-blue-200'
-      case 'scheduled': return 'text-purple-700 bg-purple-200'
-      case 'completed': return 'text-green-700 bg-green-200'
+      case 'resolved': return 'text-green-700 bg-green-200'
+      case 'closed': return 'text-green-800 bg-green-300'
+      case 'deferred': return 'text-purple-700 bg-purple-200'
       default: return 'text-gray-700 bg-gray-200'
     }
   }
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'immediate': return 'border-l-4 border-red-500'
+      case 'critical': return 'border-l-4 border-red-600'
       case 'high': return 'border-l-4 border-orange-500'
       case 'medium': return 'border-l-4 border-yellow-500'
       case 'low': return 'border-l-4 border-green-500'
       default: return 'border-l-4 border-gray-500'
     }
   }
-
-  const maintenanceStaff = [
-    { id: 'john.smith', name: 'John Smith' },
-    { id: 'jane.wilson', name: 'Jane Wilson' },
-    { id: 'mike.johnson', name: 'Mike Johnson' },
-    { id: 'sarah.davis', name: 'Sarah Davis' }
-  ]
 
   return (
     <div className="space-y-6">
@@ -182,10 +375,18 @@ const Defects = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => fetchDefects()}
+            disabled={loading}
+            className="btn-secondary inline-flex items-center"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
           {isAdmin() && (
             <button className="btn-secondary inline-flex items-center">
               <FileText className="h-4 w-4 mr-2" />
-              Generate Heatmap
+              Generate Report
             </button>
           )}
           <Link to={isAdmin() ? "/inspections" : "/maintenance/inspections"} className="btn-primary inline-flex items-center">
@@ -195,12 +396,37 @@ const Defects = () => {
         </div>
       </div>
 
+      {/* Inspection Filter Banner */}
+      {inspectionFilter && inspectionInfo && (
+        <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-blue-900 dark:text-blue-100">
+                Showing defects from Inspection: {inspectionInfo.inspectionId}
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                Date: {new Date(inspectionInfo.inspectionDate).toLocaleDateString()} | 
+                Health Score: {inspectionInfo.healthScore}% | 
+                Priority: {inspectionInfo.priority?.toUpperCase()} |
+                AI Defects Found: {inspectionInfo.aiAnalysis?.detectedDefects?.length || inspectionInfo.aiAnalysis?.defectsSummary?.total || 0}
+              </p>
+            </div>
+            <Link
+              to="/defects"
+              className="btn-secondary text-sm inline-flex items-center"
+            >
+              View All Defects
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="card">
           <div className="card-body text-center">
             <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {defects.length}
+              {stats.total || 0}
             </div>
             <div className="text-sm text-gray-500 dark:text-gray-400">Total Defects</div>
           </div>
@@ -208,9 +434,9 @@ const Defects = () => {
         <div className="card">
           <div className="card-body text-center">
             <div className="text-2xl font-semibold text-red-600 dark:text-red-400">
-              {defects.filter(d => d.status === 'pending').length}
+              {stats.open || 0}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Pending</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Open</div>
           </div>
         </div>
         <div className="card">
@@ -223,18 +449,18 @@ const Defects = () => {
         </div>
         <div className="card">
           <div className="card-body text-center">
-            <div className="text-2xl font-semibold text-purple-600 dark:text-purple-400">
-              {defects.filter(d => d.status === 'scheduled').length}
+            <div className="text-2xl font-semibold text-orange-600 dark:text-orange-400">
+              {stats.critical || 0}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Scheduled</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Critical</div>
           </div>
         </div>
         <div className="card">
           <div className="card-body text-center">
             <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
-              {defects.filter(d => d.status === 'completed').length}
+              {stats.resolved || 0}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Completed</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Resolved</div>
           </div>
         </div>
       </div>
@@ -271,9 +497,19 @@ const Defects = () => {
                 <option value="all">All Types</option>
                 <option value="crack">Cracks</option>
                 <option value="hotspot">Hot Spots</option>
-                <option value="dust">Dust/Soiling</option>
+                <option value="soiling">Soiling</option>
                 <option value="shading">Shading</option>
-                <option value="pid">PID</option>
+                <option value="corrosion">Corrosion</option>
+                <option value="delamination">Delamination</option>
+                <option value="discoloration">Discoloration</option>
+                <option value="burn_mark">Burn Mark</option>
+                <option value="cell_failure">Cell Failure</option>
+                <option value="junction_box_issue">Junction Box</option>
+                <option value="wiring_issue">Wiring Issue</option>
+                <option value="mounting_issue">Mounting Issue</option>
+                <option value="glass_breakage">Glass Breakage</option>
+                <option value="frame_damage">Frame Damage</option>
+                <option value="other">Other</option>
               </select>
             </div>
 
@@ -287,6 +523,7 @@ const Defects = () => {
                 onChange={(e) => setFilterSeverity(e.target.value)}
               >
                 <option value="all">All Severity</option>
+                <option value="critical">Critical</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
@@ -303,39 +540,78 @@ const Defects = () => {
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
                 <option value="all">All Status</option>
-                <option value="pending">Pending</option>
+                <option value="open">Open</option>
                 <option value="in_progress">In Progress</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="completed">Completed</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+                <option value="deferred">Deferred</option>
               </select>
             </div>
 
             <div className="flex items-end">
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {filteredDefects.length} of {defects.length} defects
+                Showing {defects.length} of {pagination.total} defects
               </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="card">
+          <div className="card-body text-center py-12">
+            <RefreshCw className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Loading defects...
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Please wait while we fetch the latest defect data.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {errorState && !loading && (
+        <div className="card">
+          <div className="card-body text-center py-12">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Error loading defects
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              {errorState}
+            </p>
+            <button 
+              onClick={() => fetchDefects()}
+              className="btn-primary inline-flex items-center"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Defects list */}
+      {!loading && !errorState && (
       <div className="space-y-4">
-        {filteredDefects.map((defect) => (
-          <div key={defect.id} className={`card ${getPriorityColor(defect.priority)}`}>
+          {displayDefects.map((defect) => (
+          <div key={defect._id} className={`card ${getPriorityColor(defect.priority)}`}>
             <div className="card-body">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-lg ${getTypeColor(defect.type)}`}>
-                    {getDefectIcon(defect.type)}
+                  <div className={`p-3 rounded-lg ${getTypeColor(defect.defectType)}`}>
+                    {getDefectIcon(defect.defectType)}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                         {defect.defectId}
                       </h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(defect.type)}`}>
-                        {defect.type.toUpperCase()}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(defect.defectType)}`}>
+                        {defect.defectType.replace('_', ' ').toUpperCase()}
                       </span>
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getSeverityColor(defect.severity)}`}>
                         {defect.severity.toUpperCase()}
@@ -353,7 +629,7 @@ const Defects = () => {
                       <div className="flex items-center">
                         <MapPin className="h-4 w-4 mr-2" />
                         <span className="font-medium">Location:</span>
-                        <span className="ml-1">{defect.location}</span>
+                        <span className="ml-1">{defect.location?.description || 'N/A'}</span>
                       </div>
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-2" />
@@ -361,12 +637,16 @@ const Defects = () => {
                         <span className="ml-1">{new Date(defect.detectedDate).toLocaleDateString()}</span>
                       </div>
                       <div className="flex items-center">
-                        <span className="font-medium">Energy Impact:</span>
-                        <span className="ml-1 text-orange-600 dark:text-orange-400">{defect.energyImpact}</span>
+                        <span className="font-medium">Affected Panels:</span>
+                        <span className="ml-1 text-orange-600 dark:text-orange-400">
+                          {defect.impact?.affectedPanels || 'N/A'}
+                        </span>
                       </div>
                       <div className="flex items-center">
-                        <span className="font-medium">Repair Cost:</span>
-                        <span className="ml-1 text-green-600 dark:text-green-400">{defect.repairCost}</span>
+                        <span className="font-medium">Detection Method:</span>
+                        <span className="ml-1 text-blue-600 dark:text-blue-400">
+                          {defect.detectionMethod?.replace('_', ' ') || 'N/A'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -377,7 +657,7 @@ const Defects = () => {
                 <div className="flex items-center space-x-4 text-sm">
                   {defect.assignedTo ? (
                     <span className="text-blue-600 dark:text-blue-400">
-                      Assigned to: {defect.assignedTo}
+                      Assigned to: {defect.assignedTo.firstName} {defect.assignedTo.lastName}
                     </span>
                   ) : (
                     <span className="text-gray-500 dark:text-gray-400">
@@ -385,47 +665,74 @@ const Defects = () => {
                     </span>
                   )}
                   <span className="text-gray-500 dark:text-gray-400">
-                    Est. Time: {defect.estimatedRepairTime}
+                    Priority: {defect.priority}
                   </span>
-                  {defect.scheduledDate && (
-                    <span className="text-purple-600 dark:text-purple-400">
-                      Scheduled: {new Date(defect.scheduledDate).toLocaleDateString()}
+                  {defect.resolution?.resolvedDate && (
+                    <span className="text-green-600 dark:text-green-400">
+                      Resolved: {new Date(defect.resolution.resolvedDate).toLocaleDateString()}
                     </span>
                   )}
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  {isAdmin() && !defect.assignedTo && defect.status === 'pending' && (
-                    <select className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1">
+                  {isAdmin() && !defect.assignedTo && defect.status === 'open' && (
+                    <select 
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAssignDefect(defect._id, e.target.value)
+                        }
+                      }}
+                      value=""
+                    >
                       <option value="">Assign to...</option>
                       {maintenanceStaff.map(staff => (
-                        <option key={staff.id} value={staff.id}>{staff.name}</option>
+                        <option key={staff._id} value={staff._id}>
+                          {staff.firstName} {staff.lastName}
+                        </option>
                       ))}
                     </select>
                   )}
                   
                   <Link
-                    to={`/defects/${defect.id}`}
+                    to={`/defects/${defect._id}`}
                     className="btn-secondary text-sm inline-flex items-center"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     View Details
                   </Link>
                   
-                  {defect.status !== 'completed' && (
-                    <button className="btn-primary text-sm inline-flex items-center">
+                  {isAdmin() && defect.status === 'open' && (
+                    <button
+                      onClick={() => handleCreateMaintenanceTask(defect)}
+                      className="btn-primary text-sm inline-flex items-center"
+                      title="Create maintenance task for this defect"
+                    >
                       <Wrench className="h-4 w-4 mr-1" />
-                      {isAdmin() ? 'Schedule Repair' : 'Update Status'}
+                      Create Task
                     </button>
+                  )}
+                  
+                  {defect.status !== 'resolved' && defect.status !== 'closed' && (
+                    <select
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1"
+                      value={defect.status}
+                      onChange={(e) => handleStatusUpdate(defect._id, e.target.value)}
+                    >
+                      <option value="open">Open</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                      <option value="deferred">Deferred</option>
+                    </select>
                   )}
                 </div>
               </div>
             </div>
           </div>
         ))}
-      </div>
 
-      {filteredDefects.length === 0 && (
+        {displayDefects.length === 0 && (
         <div className="card">
           <div className="card-body text-center py-12">
             <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -433,15 +740,20 @@ const Defects = () => {
               No defects found
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-4">
-              No defects match your current filters.
+                No defects match your current filters or no defects have been detected yet.
             </p>
             <Link to={isAdmin() ? "/inspections" : "/maintenance/inspections"} className="btn-primary inline-flex items-center">
               <AlertTriangle className="h-4 w-4 mr-2" />
               View Inspections
             </Link>
           </div>
+          </div>
+        )}
         </div>
       )}
+      
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }

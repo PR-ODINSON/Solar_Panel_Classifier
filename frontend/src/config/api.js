@@ -2,7 +2,7 @@
 // This file contains all API endpoints and configuration for connecting to the Python FastAPI backend
 
 export const API_CONFIG = {
-  // Base URL for the FastAPI backend - adjust port if needed
+  // Base URL for the backend server - without /api prefix
   BASE_URL: 'http://localhost:8000',
   
   // Timeout for API requests (in milliseconds)
