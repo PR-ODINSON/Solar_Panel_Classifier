@@ -75,6 +75,7 @@ router.get('/', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
             Defect.countDocuments(query)
         ]);
 
+
         res.json({
             success: true,
             data: {
@@ -181,10 +182,16 @@ router.get('/:id', authenticate, requireMaintenanceOrAdmin, async (req, res) => 
         
         // For non-admin users, only allow access to defects they're involved with
         if (req.user.role !== 'admin') {
+            console.log('Non-admin user accessing defect:', {
+                userId: req.user._id,
+                username: req.user.username,
+                defectId: req.params.id
+            });
             query.$or = [
                 { reportedBy: req.user._id },
                 { assignedTo: req.user._id }
             ];
+            console.log('Query for defect access:', JSON.stringify(query, null, 2));
         }
 
         const defect = await Defect.findOne(query)
@@ -196,6 +203,12 @@ router.get('/:id', authenticate, requireMaintenanceOrAdmin, async (req, res) => 
             .populate('resolution.verifiedBy', 'firstName lastName username')
             .populate('notes.author', 'firstName lastName username')
             .lean();
+
+        console.log('Defect found:', defect ? {
+            defectId: defect.defectId,
+            assignedTo: defect.assignedTo,
+            reportedBy: defect.reportedBy
+        } : 'No defect found');
 
         if (!defect) {
             return res.status(404).json({

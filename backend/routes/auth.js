@@ -434,9 +434,20 @@ router.post('/register', authRateLimit, async (req, res) => {
             });
         }
 
-        // Auto-generate employee ID
-        const userCount = await User.countDocuments({ role: 'maintenance_staff' });
-        const employeeId = `EMP${String(userCount + 1).padStart(3, '0')}`;
+        // Auto-generate unique employee ID
+        let employeeId;
+        let isUnique = false;
+        let counter = 1;
+        
+        while (!isUnique) {
+            employeeId = `EMP${String(counter).padStart(3, '0')}`;
+            const existingUser = await User.findOne({ employeeId });
+            if (!existingUser) {
+                isUnique = true;
+            } else {
+                counter++;
+            }
+        }
 
         // Generate username from email (part before @)
         const username = email.split('@')[0].toLowerCase();
@@ -496,9 +507,34 @@ router.post('/register', authRateLimit, async (req, res) => {
             });
         }
 
+        // Handle MongoDB duplicate key errors
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyValue)[0];
+            const value = error.keyValue[field];
+            
+            let message = 'Duplicate value error';
+            if (field === 'email') {
+                message = 'Email already exists';
+            } else if (field === 'username') {
+                message = 'Username already exists';
+            } else if (field === 'employeeId') {
+                message = 'Employee ID already exists. Please try again.';
+            }
+            
+            return res.status(400).json({
+                success: false,
+                message,
+                errors: [{
+                    field,
+                    message
+                }]
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Registration failed',
+            errors: [],
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }

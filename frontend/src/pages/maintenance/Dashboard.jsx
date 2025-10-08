@@ -7,90 +7,244 @@ import {
   Calendar,
   MapPin,
   Wrench,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
+import api from '../../api/apiClient.js'
+import { useToast } from '../../hooks/useToast.js'
+import ToastContainer from '../../components/ToastContainer.jsx'
 
 const MaintenanceDashboard = () => {
   const { user } = useAuth()
+  const { toasts, removeToast, success, error, info } = useToast()
   const [dashboardData, setDashboardData] = useState({
-    panelsAssigned: 240,
-    pendingTasks: 8,
-    criticalAlerts: 3,
-    completedToday: 5
+    panelsAssigned: 0,
+    pendingTasks: 0,
+    criticalAlerts: 0,
+    completedToday: 0
   })
+  const [myTasks, setMyTasks] = useState([])
+  const [recentActivity, setRecentActivity] = useState([])
+  const [upcomingSchedule, setUpcomingSchedule] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState(new Date())
 
-  // Mock data for assigned tasks
-  const myTasks = [
-    {
-      id: 1,
-      title: 'Repair Cracked Panel A-15',
-      priority: 'high',
-      status: 'in_progress',
-      dueDate: '2024-01-22T17:00:00Z',
-      location: 'Section A, Row 3, Column 15',
-      estimatedTime: '2 hours',
-      defectType: 'crack'
-    },
-    {
-      id: 2,
-      title: 'Fix Hot Spot in Panel A-23',
-      priority: 'medium',
-      status: 'pending',
-      dueDate: '2024-01-21T12:00:00Z',
-      location: 'Section A, Row 5, Column 23',
-      estimatedTime: '1 hour',
-      defectType: 'hotspot'
-    },
-    {
-      id: 3,
-      title: 'Clean Dust from Panel Array B',
-      priority: 'low',
-      status: 'pending',
-      dueDate: '2024-01-24T16:00:00Z',
-      location: 'Section B, Rows 8-12',
-      estimatedTime: '45 minutes',
-      defectType: 'dust'
+  // Fetch dashboard data
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch defects (backend automatically filters for assigned defects for non-admin users)
+      const defectsRes = await api.defects.list({ 
+        limit: 100 
+      })
+      
+      const defects = defectsRes.data?.defects || []
+      
+      // Debug logging
+      console.log('Current user:', {
+        id: user?._id,
+        username: user?.username,
+        email: user?.email,
+        role: user?.role,
+        firstName: user?.firstName,
+        lastName: user?.lastName
+      })
+      console.log('Fetched defects:', defects.length, defects.map(d => ({
+        id: d._id,
+        defectId: d.defectId,
+        assignedTo: d.assignedTo,
+        status: d.status
+      })))
+      
+      // Calculate stats from real data
+      const pendingTasks = defects.filter(d => d.status === 'open' || d.status === 'in_progress').length
+      const criticalAlerts = defects.filter(d => d.severity === 'critical').length
+      const completedToday = defects.filter(d => {
+        const today = new Date().toDateString()
+        return d.status === 'resolved' && new Date(d.updatedAt).toDateString() === today
+      }).length
+      
+      // Get unique panel count from defects
+      const uniquePanels = new Set(defects.map(d => d.panelId).filter(Boolean))
+      
+      setDashboardData({
+        panelsAssigned: uniquePanels.size,
+        pendingTasks,
+        criticalAlerts,
+        completedToday
+      })
+      
+      // Set tasks from defects
+      setMyTasks(defects.slice(0, 5).map(defect => ({
+        id: defect._id,
+        title: `${defect.defectType?.replace('_', ' ') || 'Unknown'} - ${defect.defectId}`,
+        priority: defect.priority || defect.severity || 'medium',
+        status: defect.status || 'open',
+        dueDate: defect.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        location: defect.location?.description || defect.location?.site || 'Location not specified',
+        estimatedTime: '1-2 hours',
+        defectType: defect.defectType,
+        description: defect.description || 'No description available',
+        severity: defect.severity || 'medium'
+      })))
+      
+      setLastUpdated(new Date())
+      
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err)
+      error('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
-  const recentActivity = [
-    { id: 1, action: 'Completed', task: 'Panel dust cleaning in Section C', time: '2 hours ago' },
-    { id: 2, action: 'Started', task: 'Crack repair for Panel A-15', time: '4 hours ago' },
-    { id: 3, action: 'Assigned', task: 'Hot spot investigation in Section B', time: '1 day ago' }
-  ]
+  // Fetch recent activities
+  const fetchRecentActivities = async () => {
+    try {
+      // Get recent defects (backend automatically filters for assigned defects)
+      const defectsRes = await api.defects.list({ 
+        limit: 10,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc'
+      })
+      
+      const activities = []
+      
+      if (defectsRes.data?.defects) {
+        defectsRes.data.defects.forEach(defect => {
+          let action = 'Assigned'
+          if (defect.status === 'resolved') action = 'Completed'
+          else if (defect.status === 'in_progress') action = 'Started'
+          
+          activities.push({
+            id: defect._id,
+            action,
+            task: `${defect.defectType} repair - ${defect.defectId}`,
+            time: getTimeAgo(defect.updatedAt),
+            timestamp: new Date(defect.updatedAt)
+          })
+        })
+      }
+      
+      setRecentActivity(activities.slice(0, 5))
+      
+    } catch (err) {
+      console.error('Error fetching recent activities:', err)
+    }
+  }
 
-  const upcomingSchedule = [
-    { id: 1, title: 'Panel Cleaning - Section D', time: '2024-01-22T09:00:00Z', type: 'maintenance' },
-    { id: 2, title: 'Defect Assessment Training', time: '2024-01-23T14:00:00Z', type: 'training' },
-    { id: 3, title: 'Quarterly Inspection Round', time: '2024-01-24T08:00:00Z', type: 'inspection' }
-  ]
+  // Fetch upcoming schedule (for now, use pending tasks as schedule)
+  const fetchUpcomingSchedule = async () => {
+    try {
+      const defectsRes = await api.defects.list({ 
+        status: 'open',
+        limit: 5,
+        sortBy: 'dueDate',
+        sortOrder: 'asc'
+      })
+      
+      const schedule = []
+      
+      if (defectsRes.data?.defects) {
+        defectsRes.data.defects.forEach(defect => {
+          schedule.push({
+            id: defect._id,
+            title: `${defect.defectType} Repair - ${defect.defectId}`,
+            time: defect.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            type: 'maintenance'
+          })
+        })
+      }
+      
+      setUpcomingSchedule(schedule)
+      
+    } catch (err) {
+      console.error('Error fetching upcoming schedule:', err)
+    }
+  }
+
+  // Helper function to format time ago
+  const getTimeAgo = (dateString) => {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60))
+    
+    if (diffInMinutes < 1) return 'Just now'
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`
+    
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    
+    const diffInDays = Math.floor(diffInHours / 24)
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+  }
+
+  // Load data on component mount and when user changes
+  useEffect(() => {
+    if (user?._id) {
+      fetchDashboardData()
+      fetchRecentActivities()
+      fetchUpcomingSchedule()
+      
+      // Set up auto-refresh every 2 minutes (more frequent for better UX)
+      const interval = setInterval(() => {
+        fetchDashboardData()
+        fetchRecentActivities()
+        fetchUpcomingSchedule()
+      }, 2 * 60 * 1000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [user?._id, user?.username]) // Also depend on username to catch user updates
+
+  // Refresh data when page becomes visible (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?._id) {
+        fetchDashboardData()
+        fetchRecentActivities()
+        fetchUpcomingSchedule()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [user?._id])
+
+  // Manual refresh
+  const handleRefresh = async () => {
+    info('Refreshing dashboard data...')
+    await Promise.all([fetchDashboardData(), fetchRecentActivities(), fetchUpcomingSchedule()])
+    success('Dashboard data refreshed successfully')
+  }
 
   const stats = [
     {
       name: 'Panels Assigned',
-      value: dashboardData.panelsAssigned,
+      value: loading ? '...' : dashboardData.panelsAssigned,
       icon: TrendingUp,
       color: 'blue',
       description: 'Panels under your maintenance'
     },
     {
       name: 'Pending Tasks',
-      value: dashboardData.pendingTasks,
+      value: loading ? '...' : dashboardData.pendingTasks,
       icon: Clock,
       color: 'yellow',
       description: 'Repair tasks awaiting action'
     },
     {
       name: 'Critical Alerts',
-      value: dashboardData.criticalAlerts,
+      value: loading ? '...' : dashboardData.criticalAlerts,
       icon: AlertTriangle,
       color: 'red',
       description: 'High priority defects'
     },
     {
       name: 'Completed Today',
-      value: dashboardData.completedToday,
+      value: loading ? '...' : dashboardData.completedToday,
       icon: CheckCircle,
       color: 'green',
       description: 'Tasks finished today'
@@ -130,22 +284,27 @@ const MaintenanceDashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Welcome back, {user?.name || user?.username}!
+              Welcome back, {user?.firstName || user?.username}!
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               Here's your solar panel maintenance overview for today
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Today</p>
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </p>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="btn-secondary inline-flex items-center"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <div className="text-right">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Last updated</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {lastUpdated.toLocaleTimeString()}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -205,7 +364,16 @@ const MaintenanceDashboard = () => {
           </div>
           <div className="card-body">
             <div className="space-y-4">
-              {myTasks.slice(0, 3).map((task) => (
+              {myTasks.length === 0 ? (
+                <div className="text-center py-8">
+                  <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">No assigned tasks yet</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    Tasks will appear here when defects are assigned to you
+                  </p>
+                </div>
+              ) : (
+                myTasks.slice(0, 3).map((task) => (
                 <Link
                   key={task.id}
                   to={`/maintenance/defects/${task.id}`}
@@ -239,7 +407,7 @@ const MaintenanceDashboard = () => {
                     </div>
                   </div>
                 </Link>
-              ))}
+              )))}
             </div>
           </div>
         </div>
@@ -253,7 +421,16 @@ const MaintenanceDashboard = () => {
           </div>
           <div className="card-body">
             <div className="space-y-4">
-              {recentActivity.map((activity) => (
+              {recentActivity.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">No recent activity</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    Your recent task updates will appear here
+                  </p>
+                </div>
+              ) : (
+                recentActivity.map((activity) => (
                 <div key={activity.id} className="flex items-start space-x-3">
                   <div className={`p-1 rounded-full mt-1 ${
                     activity.action === 'Completed' ? 'bg-green-100 text-green-600' :
@@ -273,7 +450,7 @@ const MaintenanceDashboard = () => {
                     </p>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>
@@ -290,7 +467,16 @@ const MaintenanceDashboard = () => {
           </div>
           <div className="card-body">
             <div className="space-y-3">
-              {upcomingSchedule.map((item) => (
+              {upcomingSchedule.length === 0 ? (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">No upcoming tasks</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    Your scheduled maintenance tasks will appear here
+                  </p>
+                </div>
+              ) : (
+                upcomingSchedule.map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className="flex items-center">
                     <div className={`p-2 rounded-full mr-3 ${
@@ -312,7 +498,7 @@ const MaintenanceDashboard = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>
@@ -367,50 +553,47 @@ const MaintenanceDashboard = () => {
         </div>
       </div>
 
-      {/* Performance summary */}
+      {/* Performance summary - Real data from completed tasks */}
       <div className="card">
         <div className="card-header">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-            Your Performance This Week
+            Your Performance Summary
           </h3>
         </div>
         <div className="card-body">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                12
+                {loading ? '...' : dashboardData.completedToday}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Tasks completed
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                95%
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                On-time completion
+                Tasks completed today
               </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
-                32h
+                {loading ? '...' : dashboardData.pendingTasks}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Hours logged
+                Pending tasks
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-semibold text-yellow-600 dark:text-yellow-400">
-                4.8/5
+              <div className={`text-2xl font-semibold ${
+                dashboardData.criticalAlerts === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {loading ? '...' : (dashboardData.criticalAlerts === 0 ? 'All Clear' : `${dashboardData.criticalAlerts} Critical`)}
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Average rating
+                System status
               </div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }

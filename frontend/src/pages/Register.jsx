@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/apiClient';
-import { Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Phone, Eye, EyeOff, User } from 'lucide-react';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -90,9 +90,18 @@ const Register = () => {
       const response = await api.auth.register(registrationData);
       
       if (response.data) {
-        // Registration successful, user is already logged in
-        // Redirect based on role (maintenance_staff by default)
-        navigate('/maintenance/dashboard');
+        // Registration successful, log the user in automatically
+        const { user, accessToken } = response.data;
+        
+        // Use the login function from AuthContext to set user and token
+        login(user, accessToken);
+        
+        // Redirect based on role
+        if (user.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/maintenance/dashboard');
+        }
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -120,7 +129,7 @@ const Register = () => {
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-8">
           <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <User className="w-8 h-8 text-white" />
+            <Mail className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
           <p className="text-gray-600 mt-2">Join the O&M Module platform</p>
