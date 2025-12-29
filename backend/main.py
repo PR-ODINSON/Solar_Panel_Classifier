@@ -163,6 +163,17 @@ class SolarPanelProcessor:
         saturation = np.mean(hsv[:, :, 1])
         avg_rgb = np.mean(crop, axis=(0, 1)).mean()
         return (40 < brightness < 180) and (30 < saturation < 140) and (30 < avg_rgb < 180)
+    
+    def is_box_too_large(self, box, max_aspect_ratio=3.5, max_area=100000):
+        """Check if bounding box is suspiciously large (might contain multiple panels)"""
+        x1, y1, x2, y2 = box
+        width = x2 - x1
+        height = y2 - y1
+        area = width * height
+        aspect_ratio = max(width, height) / max(min(width, height), 1)
+        
+        # Box is too large if area exceeds threshold or aspect ratio is too extreme
+        return area > max_area or aspect_ratio > max_aspect_ratio
 
     def run_yolo_and_store_boxes(self):
         """Run YOLO detection and store bounding boxes"""
@@ -177,17 +188,27 @@ class SolarPanelProcessor:
             if img is None:
                 continue
 
-            results = self.yolo_model(img, conf=0.75, iou=0.84)[0]
+            # Very sensitive settings to maximize panel detection
+            results = self.yolo_model(img, conf=0.25, iou=0.5)[0]
             valid_boxes = []
             
             for box in results.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                box_coords = [x1, y1, x2, y2]
                 crop = img[max(0, y1):min(img.shape[0], y2), max(0, x1):min(img.shape[1], x2)]
                 
-                if crop.shape[0] < 20 or crop.shape[1] < 20 or not self.is_likely_panel(crop):
+                # Basic validation: just check minimum size
+                if crop.shape[0] < 30 or crop.shape[1] < 30:
+                    continue
+                
+                # Skip extremely large boxes that cover multiple panels
+                width = x2 - x1
+                height = y2 - y1
+                area = width * height
+                if area > 150000:  # Only reject very large boxes
                     continue
                     
-                valid_boxes.append([x1, y1, x2, y2])
+                valid_boxes.append(box_coords)
 
             if valid_boxes:
                 with open(os.path.join(BOXES_DIR, fname.replace(".jpg", ".json")), "w") as f:
@@ -240,7 +261,15 @@ class SolarPanelProcessor:
                 center_x = x1 + (x2 - x1) // 2
                 center_y = y1 + (y2 - y1) // 2
                 
-                cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                # Reduce bounding box size to half
+                box_width = x2 - x1
+                box_height = y2 - y1
+                new_x1 = center_x - box_width // 4
+                new_y1 = center_y - box_height // 4
+                new_x2 = center_x + box_width // 4
+                new_y2 = center_y + box_height // 4
+                
+                cv2.rectangle(img, (new_x1, new_y1), (new_x2, new_y2), color, 2)
                 cv2.putText(img, f"{label} ({max_conf:.2f})", (center_x - 30, center_y), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
                 

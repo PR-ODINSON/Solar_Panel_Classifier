@@ -31,7 +31,7 @@ const createAdminUser = async () => {
             role: 'admin',
             phone: '+919876543210',
             department: 'IT Administration',
-            employeeId: 'EMP001',
+            employeeId: 'ADMIN001',
             isActive: true
         });
         
