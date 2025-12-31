@@ -11,9 +11,9 @@ import {
 
 const router = express.Router();
 
-// Rate limiting for auth routes
-const authRateLimit = createRateLimit(15 * 60 * 1000, 5); // 5 requests per 15 minutes
-const loginRateLimit = createRateLimit(15 * 60 * 1000, 3); // 3 login attempts per 15 minutes
+// Rate limiting for auth routes - increased for better UX in development
+const authRateLimit = createRateLimit(15 * 60 * 1000, 50); // 50 requests per 15 minutes
+const loginRateLimit = createRateLimit(15 * 60 * 1000, 20); // 20 login attempts per 15 minutes
 
 /**
  * @route   POST /api/auth/login

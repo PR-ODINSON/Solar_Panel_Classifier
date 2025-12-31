@@ -18,7 +18,7 @@ import Inspections from './pages/admin/Inspections.jsx'
 import InspectionDetail from './pages/admin/InspectionDetail.jsx'
 import Defects from './pages/admin/Defects.jsx'
 import DefectDetail from './pages/admin/DefectDetail.jsx'
-import AdminSettings from './pages/admin/Settings.jsx'
+import StaffManagement from './pages/admin/StaffManagement.jsx'
 
 // Maintenance User Pages
 import MaintenanceDashboard from './pages/maintenance/Dashboard.jsx'
@@ -106,11 +106,11 @@ function App() {
             />
             
             <Route
-              path="/settings"
+              path="/staff"
               element={
                 <ProtectedRoute adminOnly>
                   <Layout>
-                    <AdminSettings />
+                    <StaffManagement />
                   </Layout>
                 </ProtectedRoute>
               }

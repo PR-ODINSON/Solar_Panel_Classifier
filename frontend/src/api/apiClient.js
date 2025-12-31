@@ -233,6 +233,19 @@ const api = {
         removeToken()
         throw error
       }
+    },
+
+    changePassword: async (passwordData) => {
+      try {
+        const response = await apiClient.put('/api/auth/change-password', {
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+        return response.data
+      } catch (error) {
+        console.error('Change password error:', error)
+        throw error
+      }
     }
   },
 
@@ -617,7 +630,7 @@ const api = {
         return response.data
       } catch (error) {
         console.error('Error fetching users:', error)
-        return { data: { users: [], total: 0 } }
+        return { success: false, data: { users: [], total: 0 } }
       }
     },
 

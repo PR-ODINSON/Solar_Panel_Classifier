@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { 
   Menu, 
@@ -17,16 +17,21 @@ import {
   Moon,
   Home,
   Upload,
-  FileText
+  FileText,
+  ChevronDown,
+  Lock,
+  Users
 } from 'lucide-react'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(() => 
     localStorage.getItem('darkMode') === 'true'
   )
   const { user, logout, isAdmin, isMaintenanceStaff } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
 
   const toggleDarkMode = () => {
     const newDarkMode = !isDarkMode
@@ -51,7 +56,7 @@ const Layout = ({ children }) => {
         { name: 'Upload & Infer', href: '/upload-infer', icon: Upload },
         { name: 'Inspection Reports', href: '/inspections', icon: FileText },
         { name: 'Defect Management', href: '/defects', icon: AlertTriangle },
-        { name: 'Settings', href: '/settings', icon: Settings }
+        { name: 'Staff Management', href: '/staff', icon: Users }
       ]
     }
 
@@ -172,7 +177,7 @@ const Layout = ({ children }) => {
                     '/upload-infer': 'Upload & Infer Images',
                     '/inspections': 'Inspection Reports',
                     '/defects': 'Defect Management',
-                    '/settings': 'Settings',
+                    '/staff': 'Staff Management',
                     '/maintenance/dashboard': 'Maintenance Dashboard',
                     '/maintenance/inspections': 'Inspection Reports',
                     '/maintenance/defects': 'Defect Management',
@@ -210,13 +215,63 @@ const Layout = ({ children }) => {
               </button>
 
               {/* User menu */}
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary-600 dark:text-primary-400" />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                  {user?.username}
-                </span>
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center space-x-2 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="h-8 w-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+                    {user?.username}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-gray-400 hidden sm:block" />
+                </button>
+
+                {/* Dropdown menu */}
+                {userMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setUserMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {user?.name || user?.username}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {user?.role?.replace('_', ' ')}
+                        </p>
+                      </div>
+                      
+                      {isMaintenanceStaff() && (
+                        <button
+                          onClick={() => {
+                            navigate('/maintenance/settings')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <Settings className="h-4 w-4 mr-3" />
+                          Profile Settings
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => {
+                          handleLogout()
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-t border-gray-200 dark:border-gray-700"
+                      >
+                        <LogOut className="h-4 w-4 mr-3" />
+                        Sign out
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

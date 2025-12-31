@@ -1,395 +1,307 @@
 import React, { useState } from 'react'
-import { Save, Bell, Globe, Brain, Wrench, Users } from 'lucide-react'
+import { Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext.jsx'
+import apiClient from '../../api/apiClient.js'
 
 const AdminSettings = () => {
-  const [activeTab, setActiveTab] = useState('general')
-  const [settings, setSettings] = useState({
-    general: {
-      siteName: 'O&M Management System',
-      siteDescription: 'Solar Panel Operations and Maintenance Platform',
-      timezone: 'UTC-5',
-      dateFormat: 'MM/DD/YYYY',
-      language: 'en',
-      defaultPanelEfficiency: 20.5,
-      energyLossThreshold: 5.0
-    },
-    ai: {
-      confidenceThreshold: 85,
-      autoClassification: true,
-      defectDetectionModel: 'ResNet-50 v2.1',
-      thermalAnalysis: true,
-      crackDetectionSensitivity: 'medium',
-      hotspotDetectionTemp: 10.0
-    },
-    notifications: {
-      criticalDefectAlerts: true,
-      inspectionReminders: true,
-      maintenanceScheduled: true,
-      weeklyReports: true,
-      energyLossAlerts: true,
-      thresholdBreaches: true
-    },
-    maintenance: {
-      defaultRepairTime: 2,
-      emergencyResponseTime: 4,
-      schedulingBuffer: 24,
-      workOrderAutoAssign: false,
-      priorityEscalation: true,
-      qualityCheckRequired: true
-    }
+  const { user, logout } = useAuth()
+  const [formData, setFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   })
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState({ type: '', text: '' })
 
-  const tabs = [
-    { id: 'general', name: 'General', icon: Globe },
-    { id: 'ai', name: 'AI Configuration', icon: Brain },
-    { id: 'notifications', name: 'Notifications', icon: Bell },
-    { id: 'maintenance', name: 'Maintenance', icon: Wrench }
-  ]
-
-  const handleSettingChange = (category, key, value) => {
-    setSettings(prev => ({
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
       ...prev,
-      [category]: {
-        ...prev[category],
-        [key]: value
-      }
+      [name]: value
     }))
+    // Clear message when user starts typing
+    if (message.text) {
+      setMessage({ type: '', text: '' })
+    }
   }
 
-  const handleSaveSettings = () => {
-    alert('Settings saved successfully!')
+  const validateForm = () => {
+    if (!formData.currentPassword) {
+      setMessage({ type: 'error', text: 'Current password is required' })
+      return false
+    }
+    if (!formData.newPassword) {
+      setMessage({ type: 'error', text: 'New password is required' })
+      return false
+    }
+    if (formData.newPassword.length < 6) {
+      setMessage({ type: 'error', text: 'New password must be at least 6 characters long' })
+      return false
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      setMessage({ type: 'error', text: 'New passwords do not match' })
+      return false
+    }
+    if (formData.currentPassword === formData.newPassword) {
+      setMessage({ type: 'error', text: 'New password must be different from current password' })
+      return false
+    }
+    return true
   }
 
-  const renderGeneralSettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          System Configuration
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              System Name
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={settings.general.siteName}
-              onChange={(e) => handleSettingChange('general', 'siteName', e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Timezone
-            </label>
-            <select
-              className="input-field"
-              value={settings.general.timezone}
-              onChange={(e) => handleSettingChange('general', 'timezone', e.target.value)}
-            >
-              <option value="UTC-5">UTC-5 (Eastern)</option>
-              <option value="UTC-6">UTC-6 (Central)</option>
-              <option value="UTC-7">UTC-7 (Mountain)</option>
-              <option value="UTC-8">UTC-8 (Pacific)</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              System Description
-            </label>
-            <textarea
-              className="input-field"
-              rows={3}
-              value={settings.general.siteDescription}
-              onChange={(e) => handleSettingChange('general', 'siteDescription', e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Default Panel Efficiency (%)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              className="input-field"
-              value={settings.general.defaultPanelEfficiency}
-              onChange={(e) => handleSettingChange('general', 'defaultPanelEfficiency', parseFloat(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Energy Loss Threshold (%)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              className="input-field"
-              value={settings.general.energyLossThreshold}
-              onChange={(e) => handleSettingChange('general', 'energyLossThreshold', parseFloat(e.target.value))}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
 
-  const renderAISettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          AI Model Configuration
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Confidence Threshold (%)
-            </label>
-            <input
-              type="number"
-              min="50"
-              max="99"
-              className="input-field"
-              value={settings.ai.confidenceThreshold}
-              onChange={(e) => handleSettingChange('ai', 'confidenceThreshold', parseInt(e.target.value))}
-            />
-            <p className="text-xs text-gray-500 mt-1">Minimum confidence for defect detection</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Detection Model
-            </label>
-            <select
-              className="input-field"
-              value={settings.ai.defectDetectionModel}
-              onChange={(e) => handleSettingChange('ai', 'defectDetectionModel', e.target.value)}
-            >
-              <option value="ResNet-50 v2.1">ResNet-50 v2.1</option>
-              <option value="YOLOv8">YOLOv8</option>
-              <option value="EfficientNet-B7">EfficientNet-B7</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Crack Detection Sensitivity
-            </label>
-            <select
-              className="input-field"
-              value={settings.ai.crackDetectionSensitivity}
-              onChange={(e) => handleSettingChange('ai', 'crackDetectionSensitivity', e.target.value)}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Hot Spot Temperature Threshold (°C)
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              className="input-field"
-              value={settings.ai.hotspotDetectionTemp}
-              onChange={(e) => handleSettingChange('ai', 'hotspotDetectionTemp', parseFloat(e.target.value))}
-            />
-          </div>
-        </div>
-        
-        <div className="mt-6 space-y-4">
-          {Object.entries(settings.ai).filter(([key]) => ['autoClassification', 'thermalAnalysis'].includes(key)).map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {key === 'autoClassification' ? 'Automatic Defect Classification' : 'Thermal Analysis'}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {key === 'autoClassification' && 'Automatically classify detected defects'}
-                  {key === 'thermalAnalysis' && 'Enable thermal imaging analysis for hot spots'}
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={value}
-                  onChange={(e) => handleSettingChange('ai', key, e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+    setLoading(true)
+    setMessage({ type: '', text: '' })
 
-  const renderNotificationSettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          Alert Configuration
-        </h4>
-        <div className="space-y-4">
-          {Object.entries(settings.notifications).map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {key === 'criticalDefectAlerts' && 'Immediate alerts for high-priority defects'}
-                  {key === 'inspectionReminders' && 'Reminders for scheduled inspections'}
-                  {key === 'maintenanceScheduled' && 'Notifications for maintenance activities'}
-                  {key === 'weeklyReports' && 'Weekly summary reports'}
-                  {key === 'energyLossAlerts' && 'Alerts when energy loss exceeds threshold'}
-                  {key === 'thresholdBreaches' && 'Notifications for performance threshold breaches'}
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={value}
-                  onChange={(e) => handleSettingChange('notifications', key, e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+    try {
+      const response = await apiClient.auth.changePassword({
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword
+      })
 
-  const renderMaintenanceSettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          Maintenance Configuration
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Default Repair Time (hours)
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              className="input-field"
-              value={settings.maintenance.defaultRepairTime}
-              onChange={(e) => handleSettingChange('maintenance', 'defaultRepairTime', parseFloat(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Emergency Response Time (hours)
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              className="input-field"
-              value={settings.maintenance.emergencyResponseTime}
-              onChange={(e) => handleSettingChange('maintenance', 'emergencyResponseTime', parseFloat(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Scheduling Buffer (hours)
-            </label>
-            <input
-              type="number"
-              className="input-field"
-              value={settings.maintenance.schedulingBuffer}
-              onChange={(e) => handleSettingChange('maintenance', 'schedulingBuffer', parseInt(e.target.value))}
-            />
-            <p className="text-xs text-gray-500 mt-1">Buffer time between maintenance tasks</p>
-          </div>
-        </div>
-        
-        <div className="mt-6 space-y-4">
-          {Object.entries(settings.maintenance).filter(([key]) => ['workOrderAutoAssign', 'priorityEscalation', 'qualityCheckRequired'].includes(key)).map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {key === 'workOrderAutoAssign' ? 'Auto-assign Work Orders' : 
-                   key === 'priorityEscalation' ? 'Priority Escalation' : 
-                   'Quality Check Required'}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {key === 'workOrderAutoAssign' && 'Automatically assign new work orders to available staff'}
-                  {key === 'priorityEscalation' && 'Escalate priority for overdue tasks'}
-                  {key === 'qualityCheckRequired' && 'Require quality verification after repairs'}
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={value}
-                  onChange={(e) => handleSettingChange('maintenance', key, e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+      setMessage({ 
+        type: 'success', 
+        text: 'Password changed successfully! You will be logged out in 3 seconds...' 
+      })
+      
+      // Clear form
+      setFormData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
 
+      // Log out after 3 seconds
+      setTimeout(() => {
+        logout()
+      }, 3000)
+
+    } catch (error) {
+      console.error('Password change error:', error)
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.message || 'Failed to change password. Please try again.' 
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            System Settings
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Configure system-wide settings and preferences
-          </p>
-        </div>
-        <button
-          onClick={handleSaveSettings}
-          className="btn-primary inline-flex items-center"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Save Settings
-        </button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Security Settings
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Update your password to keep your account secure
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Settings navigation */}
-        <div className="lg:col-span-1">
-          <nav className="space-y-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <tab.icon className="h-5 w-5 mr-3" />
-                {tab.name}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Settings content */}
-        <div className="lg:col-span-3">
-          <div className="card">
-            <div className="card-body">
-              {activeTab === 'general' && renderGeneralSettings()}
-              {activeTab === 'ai' && renderAISettings()}
-              {activeTab === 'notifications' && renderNotificationSettings()}
-              {activeTab === 'maintenance' && renderMaintenanceSettings()}
+      {/* Password Change Form */}
+      <div className="card">
+        <div className="card-body">
+          <div className="flex items-center mb-6">
+            <div className="h-12 w-12 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
+              <Lock className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             </div>
+            <div className="ml-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Change Password
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Ensure your password is strong and secure
+              </p>
+            </div>
+          </div>
+
+          {/* Message Display */}
+          {message.text && (
+            <div className={`mb-6 p-4 rounded-lg flex items-start ${
+              message.type === 'success' 
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400' 
+                : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'
+            }`}>
+              {message.type === 'success' ? (
+                <CheckCircle className="h-5 w-5 mr-3 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0 mt-0.5" />
+              )}
+              <p className="text-sm">{message.text}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Current Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Current Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleInputChange}
+                  className="input-field pr-10"
+                  placeholder="Enter your current password"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={loading}
+                >
+                  {showCurrentPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* New Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                New Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleInputChange}
+                  className="input-field pr-10"
+                  placeholder="Enter your new password"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={loading}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Password must be at least 6 characters long
+              </p>
+            </div>
+
+            {/* Confirm New Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Confirm New Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  className="input-field pr-10"
+                  placeholder="Confirm your new password"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={loading}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    currentPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                  })
+                  setMessage({ type: '', text: '' })
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Updating...
+                  </span>
+                ) : (
+                  'Update Password'
+                )}
+              </button>
+            </div>
+          </form>
+
+          {/* Security Tips */}
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+              Password Security Tips
+            </h3>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li className="flex items-start">
+                <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
+                <span>Use a minimum of 6 characters (longer is better)</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
+                <span>Include a mix of uppercase and lowercase letters, numbers, and symbols</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
+                <span>Avoid using personal information or common words</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
+                <span>Don't reuse passwords from other accounts</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
+                <span>Change your password regularly</span>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
