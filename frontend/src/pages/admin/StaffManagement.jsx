@@ -18,12 +18,26 @@ const StaffManagement = () => {
       setLoading(true)
       setError(null)
       const response = await apiClient.users.list({ limit: 100 })
-      // Handle the nested data structure
-      const usersData = response?.data?.users || response?.users || []
+      console.log('API Response:', response)
+      
+      // Handle different response structures
+      let usersData = []
+      if (response?.success && response?.data?.users) {
+        usersData = response.data.users
+      } else if (response?.data?.users) {
+        usersData = response.data.users
+      } else if (response?.users) {
+        usersData = response.users
+      } else if (Array.isArray(response?.data)) {
+        usersData = response.data
+      } else if (Array.isArray(response)) {
+        usersData = response
+      }
+      
       setUsers(usersData)
     } catch (error) {
       console.error('Error fetching users:', error)
-      setError('Failed to load users. Please try again.')
+      setError('Failed to load users. Please check if the backend server is running.')
     } finally {
       setLoading(false)
     }

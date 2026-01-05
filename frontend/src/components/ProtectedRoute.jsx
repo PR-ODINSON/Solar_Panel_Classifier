@@ -32,6 +32,7 @@ const ProtectedRoute = ({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
+    console.log('🔒 ProtectedRoute: User not authenticated, redirecting to signin')
     return (
       <Navigate 
         to={redirectTo} 
@@ -41,8 +42,16 @@ const ProtectedRoute = ({
     )
   }
 
+  console.log('✅ ProtectedRoute: User authenticated:', {
+    username: user?.username,
+    role: user?.role,
+    adminOnly,
+    requiredRole
+  })
+
   // Check admin-only access
   if (adminOnly && !isAdmin()) {
+    console.log('❌ ProtectedRoute: Access denied - Admin only route, user role:', user?.role)
     return (
       <Navigate 
         to="/unauthorized" 
@@ -67,7 +76,14 @@ const ProtectedRoute = ({
       hasRequiredRole = hasRole(requiredRole)
     }
 
+    console.log('🔐 ProtectedRoute: Role check -', {
+      requiredRole,
+      userRole: user?.role,
+      hasRequiredRole
+    })
+
     if (!hasRequiredRole) {
+      console.log('❌ ProtectedRoute: Access denied - Required role not met')
       return (
         <Navigate 
           to="/unauthorized" 
@@ -83,6 +99,7 @@ const ProtectedRoute = ({
     }
   }
 
+  console.log('✅ ProtectedRoute: Access granted')
   // Access granted - render the protected content
   return children
 }

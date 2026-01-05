@@ -128,6 +128,12 @@ export const AuthProvider = ({ children }) => {
       const response = await api.auth.login(credentials)
       const { token, user } = response.data
       
+      console.log('🔐 Login successful:', {
+        username: user.username,
+        role: user.role,
+        email: user.email
+      })
+      
       dispatch({
         type: 'AUTH_SUCCESS',
         payload: { user, token }
@@ -136,6 +142,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true }
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Login failed'
+      console.error('❌ Login failed:', errorMessage)
       dispatch({
         type: 'AUTH_FAILURE',
         payload: errorMessage
@@ -167,13 +174,21 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user has required role
   const hasRole = (requiredRole) => {
-    if (!state.user) return false
+    if (!state.user) {
+      console.log('❌ hasRole: No user in state')
+      return false
+    }
     
     // Admin has access to everything
-    if (state.user.role === 'admin') return true
+    if (state.user.role === 'admin') {
+      console.log('✅ hasRole: User is admin, granting access')
+      return true
+    }
     
     // Check specific role
-    return state.user.role === requiredRole
+    const hasAccess = state.user.role === requiredRole
+    console.log(`${hasAccess ? '✅' : '❌'} hasRole: User role="${state.user.role}", required="${requiredRole}", access=${hasAccess}`)
+    return hasAccess
   }
 
   // Check if user is admin

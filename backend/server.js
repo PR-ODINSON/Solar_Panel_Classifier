@@ -57,39 +57,69 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS middleware - Allow all origins in development
-app.use(cors({
+// CORS middleware - Comprehensive configuration
+const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        
-        // In development, allow all origins
-        if (process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-        
-        // In production, only allow specific origins
+        // Allow requests with no origin (like mobile apps, Postman, or same-origin)
         const allowedOrigins = [
             process.env.FRONTEND_URL || 'http://localhost:3000',
             'http://localhost:3000',
-            'http://127.0.0.1:3000'
+            'http://localhost:5173',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5173'
         ];
         
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            // In development, allow all origins
+            if (process.env.NODE_ENV === 'development') {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
-}));
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+    maxAge: 86400 // Cache preflight requests for 24 hours
+};
 
+app.use(cors(corsOptions));
+
+// Additional CORS headers middleware for extra safety
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
+    
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+    next();
+});
+
+// Handle preflight requests explicitly for all routes
+app.options('*', cors(corsOptions));
+
+// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Log all requests in development
+if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+        next();
+    });
+}
 
 // Constants
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -396,6 +426,10 @@ app.post('/cleanup', async (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
+    // Ensure CORS headers are set even on errors
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     if (error instanceof multer.MulterError) {
         if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
@@ -408,12 +442,17 @@ app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
     res.status(500).json({
         error: 'Internal server error',
-        success: false
+        success: false,
+        message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
+    // Ensure CORS headers are set even on 404
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     res.status(404).json({
         error: 'Endpoint not found',
         path: req.originalUrl
@@ -439,6 +478,18 @@ process.on('SIGINT', async () => {
         console.error('❌ Error during cleanup:', error);
         process.exit(1);
     }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+    console.error('❌ Unhandled Promise Rejection:', err);
+    // Don't exit the process, just log the error
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err);
+    // Don't exit the process, just log the error
 });
 
 export default app;

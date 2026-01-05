@@ -8,12 +8,13 @@ from ultralytics import YOLO
 from pathlib import Path
 
 def is_likely_panel(crop):
-    """Filter to identify likely solar panels"""
+    """Filter to identify likely solar panels with relaxed thresholds"""
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     brightness = np.mean(hsv[:, :, 2])
     saturation = np.mean(hsv[:, :, 1])
     avg_rgb = np.mean(crop, axis=(0, 1)).mean()
-    return (40 < brightness < 180) and (30 < saturation < 140) and (30 < avg_rgb < 180)
+    # Relaxed thresholds for better detection
+    return (20 < brightness < 220) and (10 < saturation < 200) and (15 < avg_rgb < 220)
 
 def main():
     if len(sys.argv) != 4:
@@ -38,8 +39,8 @@ def main():
         if img is None:
             continue
 
-        # Run YOLO detection
-        detections = model(img, conf=0.75, iou=0.84)[0]
+        # Run YOLO detection with lower thresholds for better detection
+        detections = model(img, conf=0.35, iou=0.45)[0]
         valid_boxes = []
         
         for box in detections.boxes:

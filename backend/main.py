@@ -189,7 +189,7 @@ class SolarPanelProcessor:
                 continue
 
             # Very sensitive settings to maximize panel detection
-            results = self.yolo_model(img, conf=0.25, iou=0.5)[0]
+            results = self.yolo_model(img, conf=0.20, iou=0.40)[0]
             valid_boxes = []
             
             for box in results.boxes:

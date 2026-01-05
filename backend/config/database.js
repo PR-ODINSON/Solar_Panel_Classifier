@@ -6,7 +6,8 @@ dotenv.config();
 const connectDB = async () => {
     try {
         const conn = await mongoose.connect(process.env.MONGODB_URI, {
-            dbName: process.env.DB_NAME || 'solar_panel_om'
+            dbName: process.env.DB_NAME || 'solar_panel_om',
+            serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of default 30
         });
 
         console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
@@ -28,7 +29,11 @@ const connectDB = async () => {
         return conn;
     } catch (error) {
         console.error('❌ Error connecting to MongoDB:', error.message);
-        process.exit(1);
+        console.error('⚠️  Server will continue running but database features will not work.');
+        console.error('⚠️  Please check your MongoDB connection string and network connectivity.');
+        // Don't exit, let the server run without database
+        // process.exit(1);
+        return null;
     }
 };
 

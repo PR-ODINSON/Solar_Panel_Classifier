@@ -12,11 +12,20 @@ const SignIn = () => {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   
-  const { login, isAuthenticated, isLoading, error, clearError, user } = useAuth()
+  const { login, isAuthenticated, isLoading, error, clearError, user, isAdmin, isMaintenanceStaff } = useAuth()
   const location = useLocation()
   
-  // Redirect path after successful login
-  const from = location.state?.from?.pathname || '/'
+  // Determine redirect path after successful login
+  const getRedirectPath = () => {
+    // If there's a specific 'from' location that's not root, use it
+    if (location.state?.from?.pathname && location.state.from.pathname !== '/') {
+      return location.state.from.pathname
+    }
+    // Otherwise redirect based on role
+    return null // Will be handled by Navigate component below
+  }
+  
+  const from = getRedirectPath()
 
   // Handle dark mode toggle
   useEffect(() => {
@@ -40,7 +49,17 @@ const SignIn = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    return <Navigate to={from} replace />
+    if (from) {
+      return <Navigate to={from} replace />
+    }
+    // Redirect based on role
+    if (isAdmin()) {
+      return <Navigate to="/dashboard" replace />
+    } else if (isMaintenanceStaff()) {
+      return <Navigate to="/maintenance/dashboard" replace />
+    }
+    // Fallback to root which will handle redirect
+    return <Navigate to="/" replace />
   }
 
   const handleSubmit = async (e) => {
