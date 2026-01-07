@@ -26,7 +26,6 @@ const MaintenanceDashboard = () => {
   })
   const [myTasks, setMyTasks] = useState([])
   const [recentActivity, setRecentActivity] = useState([])
-  const [upcomingSchedule, setUpcomingSchedule] = useState([])
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(new Date())
 
@@ -35,12 +34,13 @@ const MaintenanceDashboard = () => {
     try {
       setLoading(true)
       
-      // Fetch defects (backend automatically filters for assigned defects for non-admin users)
-      const defectsRes = await api.defects.list({ 
-        limit: 100 
+      // Fetch assigned defects (which are tasks for maintenance staff)
+      const tasksRes = await api.defects.list({ 
+        assignedTo: user?.id || user?._id,
+        limit: 100
       })
       
-      const defects = defectsRes.data?.defects || []
+      const tasks = tasksRes.data?.defects || []
       
       // Debug logging
       console.log('Current user:', {
@@ -51,23 +51,34 @@ const MaintenanceDashboard = () => {
         firstName: user?.firstName,
         lastName: user?.lastName
       })
-      console.log('Fetched defects:', defects.length, defects.map(d => ({
-        id: d._id,
-        defectId: d.defectId,
-        assignedTo: d.assignedTo,
-        status: d.status
+      console.log('Fetched maintenance tasks:', tasks.length, tasks.map(t => ({
+        id: t._id,
+        taskId: t.taskId,
+        title: t.title,
+        assignedTo: t.assignedTo,
+        status: t.status,
+        scheduledDate: t.scheduledDate,
+        createdAt: t.createdAt
       })))
       
       // Calculate stats from real data
-      const pendingTasks = defects.filter(d => d.status === 'open' || d.status === 'in_progress').length
-      const criticalAlerts = defects.filter(d => d.severity === 'critical').length
-      const completedToday = defects.filter(d => {
+      const pendingTasks = tasks.filter(t => 
+        t.status === 'pending' || t.status === 'assigned' || t.status === 'in_progress'
+      ).length
+      
+      const criticalAlerts = tasks.filter(t => t.priority === 'critical').length
+      
+      const completedToday = tasks.filter(t => {
         const today = new Date().toDateString()
-        return d.status === 'resolved' && new Date(d.updatedAt).toDateString() === today
+        return t.status === 'completed' && new Date(t.completedAt || t.updatedAt).toDateString() === today
       }).length
       
-      // Get unique panel count from defects
-      const uniquePanels = new Set(defects.map(d => d.panelId).filter(Boolean))
+      // Get unique panel count from tasks
+      const uniquePanels = new Set()
+      tasks.forEach(task => {
+        if (task.panel) uniquePanels.add(task.panel)
+        if (task.panels) task.panels.forEach(p => uniquePanels.add(p))
+      })
       
       setDashboardData({
         panelsAssigned: uniquePanels.size,
@@ -76,18 +87,20 @@ const MaintenanceDashboard = () => {
         completedToday
       })
       
-      // Set tasks from defects
-      setMyTasks(defects.slice(0, 5).map(defect => ({
+      // Set tasks from assigned defects
+      setMyTasks(tasks.slice(0, 5).map(defect => ({
         id: defect._id,
-        title: `${defect.defectType?.replace('_', ' ') || 'Unknown'} - ${defect.defectId}`,
-        priority: defect.priority || defect.severity || 'medium',
-        status: defect.status || 'open',
-        dueDate: defect.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        title: `${defect.defectType.replace('_', ' ')} Defect - ${defect.defectId}`,
+        priority: defect.priority,
+        status: defect.status,
+        scheduledDate: defect.detectedDate,
         location: defect.location?.description || defect.location?.site || 'Location not specified',
         estimatedTime: '1-2 hours',
-        defectType: defect.defectType,
+        taskId: defect.defectId,
         description: defect.description || 'No description available',
-        severity: defect.severity || 'medium'
+        type: defect.defectType,
+        category: defect.severity,
+        createdAt: defect.detectedDate
       })))
       
       setLastUpdated(new Date())
@@ -103,8 +116,9 @@ const MaintenanceDashboard = () => {
   // Fetch recent activities
   const fetchRecentActivities = async () => {
     try {
-      // Get recent defects (backend automatically filters for assigned defects)
-      const defectsRes = await api.defects.list({ 
+      // Get recent assigned defects (which are tasks for maintenance staff)
+      const tasksRes = await api.defects.list({ 
+        assignedTo: user?.id || user?._id,
         limit: 10,
         sortBy: 'updatedAt',
         sortOrder: 'desc'
@@ -112,18 +126,19 @@ const MaintenanceDashboard = () => {
       
       const activities = []
       
-      if (defectsRes.data?.defects) {
-        defectsRes.data.defects.forEach(defect => {
+      if (tasksRes.data?.defects) {
+        tasksRes.data.defects.forEach(task => {
           let action = 'Assigned'
-          if (defect.status === 'resolved') action = 'Completed'
-          else if (defect.status === 'in_progress') action = 'Started'
+          if (task.status === 'resolved' || task.status === 'closed') action = 'Completed'
+          else if (task.status === 'in_progress') action = 'Started'
+          else if (task.status === 'open') action = 'Assigned'
           
           activities.push({
-            id: defect._id,
+            id: task._id,
             action,
-            task: `${defect.defectType} repair - ${defect.defectId}`,
-            time: getTimeAgo(defect.updatedAt),
-            timestamp: new Date(defect.updatedAt)
+            task: `${task.defectType.replace('_', ' ')} - ${task.defectId}`,
+            time: getTimeAgo(task.updatedAt),
+            timestamp: new Date(task.updatedAt)
           })
         })
       }
@@ -135,35 +150,7 @@ const MaintenanceDashboard = () => {
     }
   }
 
-  // Fetch upcoming schedule (for now, use pending tasks as schedule)
-  const fetchUpcomingSchedule = async () => {
-    try {
-      const defectsRes = await api.defects.list({ 
-        status: 'open',
-        limit: 5,
-        sortBy: 'dueDate',
-        sortOrder: 'asc'
-      })
-      
-      const schedule = []
-      
-      if (defectsRes.data?.defects) {
-        defectsRes.data.defects.forEach(defect => {
-          schedule.push({
-            id: defect._id,
-            title: `${defect.defectType} Repair - ${defect.defectId}`,
-            time: defect.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            type: 'maintenance'
-          })
-        })
-      }
-      
-      setUpcomingSchedule(schedule)
-      
-    } catch (err) {
-      console.error('Error fetching upcoming schedule:', err)
-    }
-  }
+
 
   // Helper function to format time ago
   const getTimeAgo = (dateString) => {
@@ -186,13 +173,11 @@ const MaintenanceDashboard = () => {
     if (user?._id) {
       fetchDashboardData()
       fetchRecentActivities()
-      fetchUpcomingSchedule()
       
       // Set up auto-refresh every 2 minutes (more frequent for better UX)
       const interval = setInterval(() => {
         fetchDashboardData()
         fetchRecentActivities()
-        fetchUpcomingSchedule()
       }, 2 * 60 * 1000)
       
       return () => clearInterval(interval)
@@ -205,7 +190,6 @@ const MaintenanceDashboard = () => {
       if (!document.hidden && user?._id) {
         fetchDashboardData()
         fetchRecentActivities()
-        fetchUpcomingSchedule()
       }
     }
 
@@ -216,7 +200,7 @@ const MaintenanceDashboard = () => {
   // Manual refresh
   const handleRefresh = async () => {
     info('Refreshing dashboard data...')
-    await Promise.all([fetchDashboardData(), fetchRecentActivities(), fetchUpcomingSchedule()])
+    await Promise.all([fetchDashboardData(), fetchRecentActivities()])
     success('Dashboard data refreshed successfully')
   }
 
@@ -252,28 +236,38 @@ const MaintenanceDashboard = () => {
   ]
 
   const getPriorityColor = (priority) => {
+    if (!priority) return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
     switch (priority.toLowerCase()) {
+      case 'critical':
+        return 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900'
       case 'high':
-        return 'text-red-600 bg-red-100'
+        return 'text-orange-700 bg-orange-100 dark:text-orange-400 dark:bg-orange-900'
       case 'medium':
-        return 'text-yellow-600 bg-yellow-100'
+        return 'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900'
       case 'low':
-        return 'text-green-600 bg-green-100'
+        return 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900'
       default:
-        return 'text-gray-600 bg-gray-100'
+        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
     }
   }
 
   const getStatusColor = (status) => {
+    if (!status) return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
     switch (status.toLowerCase()) {
       case 'completed':
-        return 'text-green-600 bg-green-100'
+        return 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900'
       case 'in_progress':
-        return 'text-blue-600 bg-blue-100'
+        return 'text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900'
+      case 'assigned':
+        return 'text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900'
       case 'pending':
-        return 'text-gray-600 bg-gray-100'
+        return 'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900'
+      case 'on_hold':
+        return 'text-gray-700 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
+      case 'cancelled':
+        return 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900'
       default:
-        return 'text-gray-600 bg-gray-100'
+        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
     }
   }
 
@@ -376,7 +370,7 @@ const MaintenanceDashboard = () => {
                 myTasks.slice(0, 3).map((task) => (
                 <Link
                   key={task.id}
-                  to={`/maintenance/defects/${task.id}`}
+                  to={`/maintenance/tasks/${task.id}`}
                   className="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200"
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -393,10 +387,12 @@ const MaintenanceDashboard = () => {
                     </div>
                   </div>
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-4">
-                    <div className="flex items-center">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      Due {new Date(task.dueDate).toLocaleDateString()}
-                    </div>
+                    {task.scheduledDate && (
+                      <div className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Scheduled {new Date(task.scheduledDate).toLocaleDateString()}
+                      </div>
+                    )}
                     <div className="flex items-center">
                       <MapPin className="h-3 w-3 mr-1" />
                       {task.location}
@@ -451,142 +447,6 @@ const MaintenanceDashboard = () => {
                   </div>
                 </div>
               )))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Upcoming schedule and quick actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming schedule */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              Upcoming Schedule
-            </h3>
-          </div>
-          <div className="card-body">
-            <div className="space-y-3">
-              {upcomingSchedule.length === 0 ? (
-                <div className="text-center py-8">
-                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400">No upcoming tasks</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500">
-                    Your scheduled maintenance tasks will appear here
-                  </p>
-                </div>
-              ) : (
-                upcomingSchedule.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex items-center">
-                    <div className={`p-2 rounded-full mr-3 ${
-                      item.type === 'maintenance' ? 'bg-blue-100 text-blue-600' :
-                      item.type === 'training' ? 'bg-green-100 text-green-600' :
-                      'bg-yellow-100 text-yellow-600'
-                    }`}>
-                      {item.type === 'maintenance' && <Wrench className="h-4 w-4" />}
-                      {item.type === 'training' && <TrendingUp className="h-4 w-4" />}
-                      {item.type === 'inspection' && <CheckCircle className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(item.time).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )))}
-            </div>
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              Quick Actions
-            </h3>
-          </div>
-          <div className="card-body">
-            <div className="grid grid-cols-2 gap-4">
-              <Link
-                to="/maintenance/defects"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
-              >
-                <Wrench className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Manage Defects
-                </p>
-              </Link>
-              
-              <Link
-                to="/maintenance/inspections"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
-              >
-                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  View Reports
-                </p>
-              </Link>
-              
-              <button className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group">
-                <Clock className="h-8 w-8 text-yellow-600 dark:text-yellow-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Log Time
-                </p>
-              </button>
-              
-              <Link
-                to="/maintenance/settings"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200 group"
-              >
-                <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Profile Settings
-                </p>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Performance summary - Real data from completed tasks */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-            Your Performance Summary
-          </h3>
-        </div>
-        <div className="card-body">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {loading ? '...' : dashboardData.completedToday}
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Tasks completed today
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
-                {loading ? '...' : dashboardData.pendingTasks}
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Pending tasks
-              </div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-semibold ${
-                dashboardData.criticalAlerts === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}>
-                {loading ? '...' : (dashboardData.criticalAlerts === 0 ? 'All Clear' : `${dashboardData.criticalAlerts} Critical`)}
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                System status
-              </div>
             </div>
           </div>
         </div>

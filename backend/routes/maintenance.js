@@ -52,11 +52,24 @@ router.get('/', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
 
         // For non-admin users, show tasks they created or are assigned to
         if (req.user.role !== 'admin') {
-            query.$or = [
-                { createdBy: req.user._id },
-                { assignedTo: req.user._id },
-                { assignedTeam: req.user._id }
-            ];
+            const userFilter = {
+                $or: [
+                    { createdBy: req.user._id },
+                    { assignedTo: req.user._id },
+                    { assignedTeam: req.user._id }
+                ]
+            };
+            
+            // If there's already a $or in the query (from search), combine them
+            if (query.$or) {
+                query.$and = [
+                    { $or: query.$or },
+                    userFilter
+                ];
+                delete query.$or;
+            } else {
+                Object.assign(query, userFilter);
+            }
         }
 
         // Build sort object
@@ -357,9 +370,13 @@ router.put('/:id', authenticate, requireMaintenanceOrAdmin, maintenanceRateLimit
 
         const updates = req.body;
         
-        // Don't allow changing creator unless admin
+        // Maintenance staff cannot change status, priority, or assignment - only admin can
         if (req.user.role !== 'admin') {
             delete updates.createdBy;
+            delete updates.status;
+            delete updates.priority;
+            delete updates.assignedTo;
+            delete updates.assignedTeam;
         }
 
         // Update progress timestamp
@@ -502,6 +519,14 @@ router.post('/:id/notes', authenticate, requireMaintenanceOrAdmin, maintenanceRa
  */
 router.put('/:id/status', authenticate, requireMaintenanceOrAdmin, maintenanceRateLimit, async (req, res) => {
     try {
+        // Only admins can change task status
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only administrators can change task status'
+            });
+        }
+
         const { status } = req.body;
         
         if (!status) {
@@ -520,15 +545,6 @@ router.put('/:id/status', authenticate, requireMaintenanceOrAdmin, maintenanceRa
         }
 
         let query = { _id: req.params.id };
-        
-        // For non-admin users, only allow updating tasks they're involved with
-        if (req.user.role !== 'admin') {
-            query.$or = [
-                { createdBy: req.user._id },
-                { assignedTo: req.user._id },
-                { assignedTeam: req.user._id }
-            ];
-        }
 
         const task = await MaintenanceTask.findOneAndUpdate(
             query,
@@ -684,6 +700,259 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete maintenance task',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   POST /api/maintenance/:id/observations
+ * @desc    Add observation to a maintenance task
+ * @access  Private
+ */
+router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const { text, images } = req.body;
+
+        // Validate at least one field is provided
+        if (!text && (!images || images.length === 0)) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least text or images must be provided for observation'
+            });
+        }
+
+        const task = await MaintenanceTask.findById(req.params.id);
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'Maintenance task not found'
+            });
+        }
+
+        // Check if user has permission (assigned to task or admin)
+        if (req.user.role !== 'admin' && 
+            task.assignedTo?.toString() !== req.user._id.toString() &&
+            !task.assignedTeam?.some(member => member.toString() === req.user._id.toString())) {
+            return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to add observations to this task'
+            });
+        }
+
+        // Create observation object
+        const observation = {
+            text: text || '',
+            images: images || [],
+            author: req.user._id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        // Add observation to task
+        task.observations.push(observation);
+        await task.save();
+
+        // Populate the observation with author details
+        await task.populate('observations.author', 'firstName lastName username');
+
+        res.status(201).json({
+            success: true,
+            message: 'Observation added successfully',
+            data: {
+                observation: task.observations[task.observations.length - 1]
+            }
+        });
+
+    } catch (error) {
+        console.error('Add observation error:', error);
+        
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error',
+                errors: Object.values(error.errors).map(err => err.message)
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to add observation',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   GET /api/maintenance/:id/observations
+ * @desc    Get all observations for a maintenance task
+ * @access  Private
+ */
+router.get('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const task = await MaintenanceTask.findById(req.params.id)
+            .populate('observations.author', 'firstName lastName username')
+            .lean();
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'Maintenance task not found'
+            });
+        }
+
+        // Check if user has permission (assigned to task or admin)
+        if (req.user.role !== 'admin' && 
+            task.assignedTo?.toString() !== req.user._id.toString() &&
+            task.createdBy?.toString() !== req.user._id.toString() &&
+            !task.assignedTeam?.some(member => member.toString() === req.user._id.toString())) {
+            return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to view observations for this task'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                observations: task.observations || []
+            }
+        });
+
+    } catch (error) {
+        console.error('Get observations error:', error);
+        
+        if (error.name === 'CastError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid task ID'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch observations',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   PUT /api/maintenance/:id/observations/:observationId
+ * @desc    Update an observation
+ * @access  Private
+ */
+router.put('/:id/observations/:observationId', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const { text, images } = req.body;
+
+        const task = await MaintenanceTask.findById(req.params.id);
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'Maintenance task not found'
+            });
+        }
+
+        const observation = task.observations.id(req.params.observationId);
+
+        if (!observation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Observation not found'
+            });
+        }
+
+        // Check if user is the author or admin
+        if (req.user.role !== 'admin' && observation.author.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can only edit your own observations'
+            });
+        }
+
+        // Update observation fields
+        if (text !== undefined) observation.text = text;
+        if (images !== undefined) observation.images = images;
+        observation.updatedAt = new Date();
+
+        await task.save();
+        await task.populate('observations.author', 'firstName lastName username');
+
+        res.json({
+            success: true,
+            message: 'Observation updated successfully',
+            data: { observation }
+        });
+
+    } catch (error) {
+        console.error('Update observation error:', error);
+        
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error',
+                errors: Object.values(error.errors).map(err => err.message)
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update observation',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   DELETE /api/maintenance/:id/observations/:observationId
+ * @desc    Delete an observation
+ * @access  Private
+ */
+router.delete('/:id/observations/:observationId', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const task = await MaintenanceTask.findById(req.params.id);
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'Maintenance task not found'
+            });
+        }
+
+        const observation = task.observations.id(req.params.observationId);
+
+        if (!observation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Observation not found'
+            });
+        }
+
+        // Check if user is the author or admin
+        if (req.user.role !== 'admin' && observation.author.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can only delete your own observations'
+            });
+        }
+
+        observation.deleteOne();
+        await task.save();
+
+        res.json({
+            success: true,
+            message: 'Observation deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Delete observation error:', error);
+        
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete observation',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }

@@ -28,6 +28,9 @@ const Defects = () => {
   })
   const [maintenanceStaff, setMaintenanceStaff] = useState([])
   const [inspectionInfo, setInspectionInfo] = useState(null)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [selectedDefect, setSelectedDefect] = useState(null)
+  const [selectedStaff, setSelectedStaff] = useState('')
 
   // Fetch defects from API
   const fetchDefects = async (params = {}) => {
@@ -135,135 +138,38 @@ const Defects = () => {
     }
   }
 
-  // Create maintenance task from defect
-  const handleCreateMaintenanceTask = async (defect) => {
-    try {
-      const taskData = {
-        title: `Repair ${defect.defectType.replace('_', ' ')} defect - ${defect.defectId}`,
-        description: `${defect.description}\n\nDefect Details:\n- Type: ${defect.defectType}\n- Severity: ${defect.severity}\n- Location: ${defect.location?.description || 'N/A'}\n- Detected: ${new Date(defect.detectedDate).toLocaleDateString()}`,
-        type: getMaintenanceType(defect.defectType),
-        category: getMaintenanceCategory(defect.defectType),
-        priority: defect.priority,
-      status: 'pending',
-        panel: defect.panel?._id,
-        relatedDefect: defect._id,
-        estimatedDuration: getEstimatedDuration(defect.defectType, defect.severity),
-        estimatedCost: 0, // Cost estimation not implemented
-        requiredSkills: getRequiredSkills(defect.defectType),
-        scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
-        dueDate: new Date(Date.now() + getDueDateOffset(defect.priority) * 24 * 60 * 60 * 1000)
-      }
+  // Assign defect to maintenance staff (defect becomes a task automatically)
+  const handleAssignDefectToStaff = (defect) => {
+    setSelectedDefect(defect)
+    setShowAssignModal(true)
+    setSelectedStaff('') // Reset selection
+  }
 
-      const response = await api.maintenance.create(taskData)
+  // Assign defect to selected staff member
+  const handleConfirmAssignment = async () => {
+    if (!selectedStaff) {
+      error('Please select a maintenance staff member')
+      return
+    }
+
+    try {
+      // Update defect with assignment and status
+      const response = await api.defects.update(selectedDefect._id, { 
+        assignedTo: selectedStaff,
+        status: 'in_progress'
+      })
+      
       if (response.success) {
-        success(`Maintenance task created successfully! Task ID: ${response.data.task.taskId}`)
-        // Update defect status to indicate task created
-        await api.defects.update(defect._id, { status: 'in_progress' })
+        success(`Defect assigned successfully! The maintenance staff can now see this in their tasks.`)
         fetchDefects()
+        setShowAssignModal(false)
+        setSelectedDefect(null)
+        setSelectedStaff('')
       }
     } catch (err) {
-      console.error('Error creating maintenance task:', err)
-      error('Failed to create maintenance task')
+      console.error('Error assigning defect:', err)
+      error('Failed to assign defect')
     }
-  }
-
-  // Helper functions for maintenance task creation
-  const getMaintenanceType = (defectType) => {
-    const mapping = {
-      'crack': 'repair',
-      'hotspot': 'repair',
-      'soiling': 'cleaning',
-      'shading': 'corrective',
-      'corrosion': 'repair',
-      'delamination': 'replacement',
-      'discoloration': 'inspection',
-      'burn_mark': 'repair',
-      'cell_failure': 'replacement',
-      'junction_box_issue': 'repair',
-      'wiring_issue': 'repair',
-      'mounting_issue': 'repair',
-      'glass_breakage': 'replacement',
-      'frame_damage': 'repair'
-    }
-    return mapping[defectType] || 'corrective'
-  }
-
-  const getMaintenanceCategory = (defectType) => {
-    const mapping = {
-      'crack': 'mechanical',
-      'hotspot': 'electrical',
-      'soiling': 'cleaning',
-      'shading': 'mechanical',
-      'corrosion': 'mechanical',
-      'delamination': 'mechanical',
-      'discoloration': 'inspection',
-      'burn_mark': 'electrical',
-      'cell_failure': 'electrical',
-      'junction_box_issue': 'electrical',
-      'wiring_issue': 'electrical',
-      'mounting_issue': 'mechanical',
-      'glass_breakage': 'mechanical',
-      'frame_damage': 'mechanical'
-    }
-    return mapping[defectType] || 'other'
-  }
-
-  const getEstimatedDuration = (defectType, severity) => {
-    const baseDurations = {
-      'crack': 120,
-      'hotspot': 90,
-      'soiling': 30,
-      'shading': 180,
-      'corrosion': 150,
-      'delamination': 240,
-      'discoloration': 60,
-      'burn_mark': 120,
-      'cell_failure': 300,
-      'junction_box_issue': 180,
-      'wiring_issue': 120,
-      'mounting_issue': 240,
-      'glass_breakage': 180,
-      'frame_damage': 120
-    }
-    
-    const multipliers = {
-      'low': 0.8,
-      'medium': 1.0,
-      'high': 1.5,
-      'critical': 2.0
-    }
-    
-    return Math.round((baseDurations[defectType] || 120) * (multipliers[severity] || 1.0))
-  }
-
-  const getRequiredSkills = (defectType) => {
-    const skillMapping = {
-      'crack': ['panel_repair', 'safety'],
-      'hotspot': ['electrical', 'thermal_imaging', 'safety'],
-      'soiling': ['cleaning', 'safety'],
-      'shading': ['mechanical', 'installation'],
-      'corrosion': ['panel_repair', 'chemical_handling', 'safety'],
-      'delamination': ['panel_replacement', 'installation', 'safety'],
-      'discoloration': ['inspection', 'diagnostics'],
-      'burn_mark': ['electrical', 'panel_repair', 'safety'],
-      'cell_failure': ['electrical', 'panel_replacement', 'safety'],
-      'junction_box_issue': ['electrical', 'safety'],
-      'wiring_issue': ['electrical', 'safety'],
-      'mounting_issue': ['mechanical', 'installation', 'safety'],
-      'glass_breakage': ['panel_replacement', 'safety'],
-      'frame_damage': ['mechanical', 'panel_repair', 'safety']
-    }
-    return skillMapping[defectType] || ['general_maintenance']
-  }
-
-  const getDueDateOffset = (priority) => {
-    const offsets = {
-      'critical': 1,
-      'high': 3,
-      'medium': 7,
-      'low': 14
-    }
-    return offsets[priority] || 7
   }
 
   // Initial load
@@ -384,15 +290,17 @@ const Defects = () => {
             Refresh
           </button>
           {isAdmin() && (
-            <button className="btn-secondary inline-flex items-center">
-              <FileText className="h-4 w-4 mr-2" />
-              Generate Report
-            </button>
+            <>
+              <button className="btn-secondary inline-flex items-center">
+                <FileText className="h-4 w-4 mr-2" />
+                Generate Report
+              </button>
+              <Link to="/inspections" className="btn-primary inline-flex items-center">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                View Inspections
+              </Link>
+            </>
           )}
-          <Link to={isAdmin() ? "/inspections" : "/maintenance/inspections"} className="btn-primary inline-flex items-center">
-            <AlertTriangle className="h-4 w-4 mr-2" />
-            View Inspections
-          </Link>
         </div>
       </div>
 
@@ -675,41 +583,22 @@ const Defects = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  {isAdmin() && !defect.assignedTo && defect.status === 'open' && (
-                    <select 
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleAssignDefect(defect._id, e.target.value)
-                        }
-                      }}
-                      value=""
-                    >
-                      <option value="">Assign to...</option>
-                      {maintenanceStaff.map(staff => (
-                        <option key={staff._id} value={staff._id}>
-                          {staff.firstName} {staff.lastName}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  
                   <Link
-                    to={`/defects/${defect._id}`}
+                    to={isAdmin() ? `/defects/${defect._id}` : `/maintenance/defects/${defect._id}`}
                     className="btn-secondary text-sm inline-flex items-center"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     View Details
                   </Link>
                   
-                  {isAdmin() && defect.status === 'open' && (
+                  {isAdmin() && defect.status === 'open' && !defect.assignedTo && (
                     <button
-                      onClick={() => handleCreateMaintenanceTask(defect)}
+                      onClick={() => handleAssignDefectToStaff(defect)}
                       className="btn-primary text-sm inline-flex items-center"
-                      title="Create maintenance task for this defect"
+                      title="Assign defect to maintenance staff"
                     >
                       <Wrench className="h-4 w-4 mr-1" />
-                      Create Task
+                      Assign Task
                     </button>
                   )}
                   
@@ -742,16 +631,84 @@ const Defects = () => {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
                 No defects match your current filters or no defects have been detected yet.
             </p>
-            <Link to={isAdmin() ? "/inspections" : "/maintenance/inspections"} className="btn-primary inline-flex items-center">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              View Inspections
-            </Link>
+            {isAdmin() && (
+              <Link to="/inspections" className="btn-primary inline-flex items-center">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                View Inspections
+              </Link>
+            )}
           </div>
           </div>
         )}
         </div>
       )}
       
+      {/* Defect Assignment Modal */}
+      {showAssignModal && selectedDefect && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Assign Defect to Staff
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Assigning defect: <span className="font-medium">{selectedDefect.defectId}</span>
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Type: <span className="font-medium">{selectedDefect.defectType.replace('_', ' ')}</span> | 
+                    Severity: <span className="font-medium">{selectedDefect.severity}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                    Note: This defect will automatically appear as a task for the assigned staff member.
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Assign to Maintenance Staff *
+                  </label>
+                  <select
+                    className="input-field w-full"
+                    value={selectedStaff}
+                    onChange={(e) => setSelectedStaff(e.target.value)}
+                  >
+                    <option value="">Select staff member...</option>
+                    {maintenanceStaff.map(staff => (
+                      <option key={staff._id} value={staff._id}>
+                        {staff.firstName} {staff.lastName} - {staff.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowAssignModal(false)
+                    setSelectedDefect(null)
+                    setSelectedStaff('')
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmAssignment}
+                  disabled={!selectedStaff}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Assign Defect
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

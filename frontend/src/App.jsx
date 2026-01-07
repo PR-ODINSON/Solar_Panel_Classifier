@@ -19,10 +19,16 @@ import InspectionDetail from './pages/admin/InspectionDetail.jsx'
 import Defects from './pages/admin/Defects.jsx'
 import DefectDetail from './pages/admin/DefectDetail.jsx'
 import StaffManagement from './pages/admin/StaffManagement.jsx'
+import MaintenanceTasks from './pages/admin/MaintenanceTasks.jsx'
 
 // Maintenance User Pages
 import MaintenanceDashboard from './pages/maintenance/Dashboard.jsx'
 import Profile from './pages/maintenance/Profile.jsx'
+import TaskDetail from './pages/maintenance/TaskDetail.jsx'
+import TasksList from './pages/maintenance/TasksList.jsx'
+
+// Admin Task Pages
+import TaskObservations from './pages/admin/TaskObservations.jsx'
 
 function App() {
   return (
@@ -116,6 +122,28 @@ function App() {
               }
             />
             
+            <Route
+              path="/admin/maintenance"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <MaintenanceTasks />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/admin/maintenance/:id/observations"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <TaskObservations />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
             {/* Maintenance User Routes */}
             <Route
               path="/maintenance/dashboard"
@@ -129,22 +157,22 @@ function App() {
             />
             
             <Route
-              path="/maintenance/inspections"
+              path="/maintenance/tasks"
               element={
                 <ProtectedRoute requiredRole="maintenance_staff">
                   <Layout>
-                    <Inspections />
+                    <TasksList />
                   </Layout>
                 </ProtectedRoute>
               }
             />
             
             <Route
-              path="/maintenance/inspections/:id"
+              path="/maintenance/tasks/:id"
               element={
                 <ProtectedRoute requiredRole="maintenance_staff">
                   <Layout>
-                    <InspectionDetail />
+                    <TaskDetail />
                   </Layout>
                 </ProtectedRoute>
               }

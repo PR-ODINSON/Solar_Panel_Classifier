@@ -15,17 +15,29 @@ const SignIn = () => {
   const { login, isAuthenticated, isLoading, error, clearError, user, isAdmin, isMaintenanceStaff } = useAuth()
   const location = useLocation()
   
-  // Determine redirect path after successful login
+  // Determine redirect path after successful login based on role
   const getRedirectPath = () => {
-    // If there's a specific 'from' location that's not root, use it
+    // If there's a specific 'from' location that's not root, validate it matches user's role
     if (location.state?.from?.pathname && location.state.from.pathname !== '/') {
-      return location.state.from.pathname
+      const fromPath = location.state.from.pathname
+      
+      // Admin can access admin routes
+      if (isAdmin() && (fromPath.startsWith('/dashboard') || fromPath.startsWith('/upload-infer') || 
+                        fromPath.startsWith('/inspections') || fromPath.startsWith('/defects') || 
+                        fromPath.startsWith('/staff') || fromPath.startsWith('/admin/'))) {
+        return fromPath
+      }
+      
+      // Maintenance staff can access maintenance routes
+      if (isMaintenanceStaff() && fromPath.startsWith('/maintenance/')) {
+        return fromPath
+      }
+      
+      // If from path doesn't match user's role, don't use it - fall through to role-based redirect
     }
     // Otherwise redirect based on role
     return null // Will be handled by Navigate component below
   }
-  
-  const from = getRedirectPath()
 
   // Handle dark mode toggle
   useEffect(() => {
@@ -49,6 +61,7 @@ const SignIn = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
+    const from = getRedirectPath()
     if (from) {
       return <Navigate to={from} replace />
     }

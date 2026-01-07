@@ -451,6 +451,37 @@ const api = {
       }
     },
 
+    // Observations for defects (defects are tasks for maintenance staff)
+    getObservations: async (defectId) => {
+      try {
+        const response = await apiClient.get(`/api/defects/${defectId}/observations`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching observations:', error)
+        throw error
+      }
+    },
+
+    addObservation: async (defectId, observationData) => {
+      try {
+        const response = await apiClient.post(`/api/defects/${defectId}/observations`, observationData)
+        return response.data
+      } catch (error) {
+        console.error('Error adding observation:', error)
+        throw error
+      }
+    },
+
+    deleteObservation: async (defectId, observationId) => {
+      try {
+        const response = await apiClient.delete(`/api/defects/${defectId}/observations/${observationId}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting observation:', error)
+        throw error
+      }
+    },
+
     getOverdue: async () => {
       try {
         const response = await apiClient.get('/api/defects/status/overdue')
@@ -617,6 +648,66 @@ const api = {
         return response.data
       } catch (error) {
         console.error('Error deleting maintenance task:', error)
+        throw error
+      }
+    },
+
+    // Observation methods
+    getObservations: async (taskId) => {
+      try {
+        const response = await apiClient.get(`/api/maintenance/${taskId}/observations`)
+        return response.data
+      } catch (error) {
+        console.error('Error fetching observations:', error)
+        throw error
+      }
+    },
+
+    addObservation: async (taskId, observationData) => {
+      try {
+        const response = await apiClient.post(`/api/maintenance/${taskId}/observations`, observationData)
+        return response.data
+      } catch (error) {
+        console.error('Error adding observation:', error)
+        throw error
+      }
+    },
+
+    updateObservation: async (taskId, observationId, updates) => {
+      try {
+        const response = await apiClient.put(`/api/maintenance/${taskId}/observations/${observationId}`, updates)
+        return response.data
+      } catch (error) {
+        console.error('Error updating observation:', error)
+        throw error
+      }
+    },
+
+    deleteObservation: async (taskId, observationId) => {
+      try {
+        const response = await apiClient.delete(`/api/maintenance/${taskId}/observations/${observationId}`)
+        return response.data
+      } catch (error) {
+        console.error('Error deleting observation:', error)
+        throw error
+      }
+    },
+
+    uploadObservationImages: async (files) => {
+      try {
+        const formData = new FormData()
+        files.forEach(file => {
+          formData.append('images', file)
+        })
+        
+        const response = await apiClient.post('/api/maintenance/observations/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
+        return response.data
+      } catch (error) {
+        console.error('Error uploading observation images:', error)
         throw error
       }
     }

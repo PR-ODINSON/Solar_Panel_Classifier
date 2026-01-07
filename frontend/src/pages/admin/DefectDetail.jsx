@@ -73,8 +73,13 @@ const DefectDetail = () => {
     }
   }
 
-  // Update defect status
+  // Update defect status (admin only)
   const handleStatusUpdate = async (newStatus) => {
+    if (!isAdmin()) {
+      error('Only administrators can change defect status')
+      return
+    }
+    
     try {
       const response = await api.defects.update(id, { status: newStatus })
       if (response.success) {

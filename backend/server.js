@@ -188,6 +188,41 @@ app.use('/api/defects', defectRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/panels', panelRoutes);
 
+/**
+ * Upload observation images
+ */
+app.post('/api/maintenance/observations/upload', upload.array('images', 10), async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No images uploaded'
+            });
+        }
+
+        const uploadedImages = req.files.map(file => ({
+            url: `/uploads/${file.filename}`,
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size
+        }));
+
+        res.json({
+            success: true,
+            message: 'Images uploaded successfully',
+            data: { images: uploadedImages }
+        });
+
+    } catch (error) {
+        console.error('Upload observation images error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to upload images',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 // Legacy Solar Panel Processing Routes
 
 /**

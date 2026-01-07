@@ -20,7 +20,8 @@ import {
   FileText,
   ChevronDown,
   Lock,
-  Users
+  Users,
+  Wrench
 } from 'lucide-react'
 
 const Layout = ({ children }) => {
@@ -56,6 +57,7 @@ const Layout = ({ children }) => {
         { name: 'Upload & Infer', href: '/upload-infer', icon: Upload },
         { name: 'Inspection Reports', href: '/inspections', icon: FileText },
         { name: 'Defect Management', href: '/defects', icon: AlertTriangle },
+        { name: 'Maintenance Tasks', href: '/admin/maintenance', icon: Settings },
         { name: 'Staff Management', href: '/staff', icon: Users }
       ]
     }
@@ -63,7 +65,7 @@ const Layout = ({ children }) => {
     if (isMaintenanceStaff()) {
       return [
         { name: 'Dashboard', href: '/maintenance/dashboard', icon: Home },
-        { name: 'Inspection Reports', href: '/maintenance/inspections', icon: FileText },
+        { name: 'My Tasks', href: '/maintenance/tasks', icon: Wrench },
         { name: 'Defect Management', href: '/maintenance/defects', icon: AlertTriangle },
         { name: 'Settings', href: '/maintenance/settings', icon: Settings }
       ]
@@ -178,8 +180,9 @@ const Layout = ({ children }) => {
                     '/inspections': 'Inspection Reports',
                     '/defects': 'Defect Management',
                     '/staff': 'Staff Management',
+                    '/admin/maintenance': 'Maintenance Tasks',
                     '/maintenance/dashboard': 'Maintenance Dashboard',
-                    '/maintenance/inspections': 'Inspection Reports',
+                    '/maintenance/tasks': 'My Tasks',
                     '/maintenance/defects': 'Defect Management',
                     '/maintenance/settings': 'Profile Settings'
                   }
@@ -189,6 +192,12 @@ const Layout = ({ children }) => {
                   }
                   if (location.pathname.startsWith('/defects/')) {
                     return 'Defect Details'
+                  }
+                  if (location.pathname.startsWith('/maintenance/tasks/')) {
+                    return 'Task Details'
+                  }
+                  if (location.pathname.startsWith('/admin/maintenance/')) {
+                    return 'Task Observations'
                   }
                   return routeTitle[location.pathname] || 'Dashboard'
                 })()}

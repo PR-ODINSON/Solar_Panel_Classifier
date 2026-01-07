@@ -5,8 +5,8 @@ import { authenticate, requireMaintenanceOrAdmin, requireAdmin, createRateLimit 
 
 const router = express.Router();
 
-// Rate limiting
-const inspectionRateLimit = createRateLimit(15 * 60 * 1000, 30); // 30 requests per 15 minutes
+// Rate limiting - Increased limit to prevent backend interruption
+const inspectionRateLimit = createRateLimit(15 * 60 * 1000, 1000); // 1000 requests per 15 minutes
 
 /**
  * @route   GET /api/inspections

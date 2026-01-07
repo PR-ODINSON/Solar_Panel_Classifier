@@ -337,9 +337,13 @@ router.put('/:id', authenticate, requireMaintenanceOrAdmin, defectRateLimit, asy
 
         const updates = req.body;
         
-        // Don't allow changing reporter unless admin
+        // Maintenance staff cannot change status, priority, severity - only admin can
         if (req.user.role !== 'admin') {
             delete updates.reportedBy;
+            delete updates.status;
+            delete updates.priority;
+            delete updates.severity;
+            delete updates.assignedTo;
         }
 
         const defect = await Defect.findOneAndUpdate(
@@ -550,6 +554,163 @@ router.get('/status/overdue', authenticate, requireMaintenanceOrAdmin, async (re
         res.status(500).json({
             success: false,
             message: 'Failed to fetch overdue defects',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   GET /api/defects/:id/observations
+ * @desc    Get observations for a defect
+ * @access  Private
+ */
+router.get('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const defect = await Defect.findById(req.params.id)
+            .populate('observations.createdBy', 'firstName lastName username');
+
+        if (!defect) {
+            return res.status(404).json({
+                success: false,
+                message: 'Defect not found'
+            });
+        }
+
+        // Check access
+        if (req.user.role !== 'admin' && 
+            defect.assignedTo?.toString() !== req.user._id.toString() &&
+            defect.reportedBy?.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: { observations: defect.observations || [] }
+        });
+
+    } catch (error) {
+        console.error('Get defect observations error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch observations',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   POST /api/defects/:id/observations
+ * @desc    Add observation to a defect
+ * @access  Private
+ */
+router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const { text, images } = req.body;
+
+        const defect = await Defect.findById(req.params.id);
+
+        if (!defect) {
+            return res.status(404).json({
+                success: false,
+                message: 'Defect not found'
+            });
+        }
+
+        // Check access
+        if (req.user.role !== 'admin' && 
+            defect.assignedTo?.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only assigned maintenance staff can add observations'
+            });
+        }
+
+        const observation = {
+            text,
+            images: images || [],
+            createdBy: req.user._id,
+            createdAt: new Date()
+        };
+
+        if (!defect.observations) {
+            defect.observations = [];
+        }
+        defect.observations.push(observation);
+        await defect.save();
+
+        // Populate the observation user
+        await defect.populate('observations.createdBy', 'firstName lastName username');
+
+        res.json({
+            success: true,
+            message: 'Observation added successfully',
+            data: { 
+                observation: defect.observations[defect.observations.length - 1],
+                defect 
+            }
+        });
+
+    } catch (error) {
+        console.error('Add defect observation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to add observation',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   DELETE /api/defects/:id/observations/:observationId
+ * @desc    Delete an observation from a defect
+ * @access  Private
+ */
+router.delete('/:id/observations/:observationId', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        const defect = await Defect.findById(req.params.id);
+
+        if (!defect) {
+            return res.status(404).json({
+                success: false,
+                message: 'Defect not found'
+            });
+        }
+
+        const observation = defect.observations.id(req.params.observationId);
+        
+        if (!observation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Observation not found'
+            });
+        }
+
+        // Check if user can delete (admin or observation creator)
+        if (req.user.role !== 'admin' && 
+            observation.createdBy?.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        observation.remove();
+        await defect.save();
+
+        res.json({
+            success: true,
+            message: 'Observation deleted successfully',
+            data: { defect }
+        });
+
+    } catch (error) {
+        console.error('Delete defect observation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete observation',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
