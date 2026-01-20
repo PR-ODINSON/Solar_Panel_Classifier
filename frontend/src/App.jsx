@@ -19,7 +19,6 @@ import InspectionDetail from './pages/admin/InspectionDetail.jsx'
 import Defects from './pages/admin/Defects.jsx'
 import DefectDetail from './pages/admin/DefectDetail.jsx'
 import StaffManagement from './pages/admin/StaffManagement.jsx'
-import MaintenanceTasks from './pages/admin/MaintenanceTasks.jsx'
 
 // Maintenance User Pages
 import MaintenanceDashboard from './pages/maintenance/Dashboard.jsx'
@@ -33,7 +32,7 @@ import TaskObservations from './pages/admin/TaskObservations.jsx'
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Routes>
             {/* Public routes */}
@@ -117,28 +116,6 @@ function App() {
                 <ProtectedRoute adminOnly>
                   <Layout>
                     <StaffManagement />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/admin/maintenance"
-              element={
-                <ProtectedRoute adminOnly>
-                  <Layout>
-                    <MaintenanceTasks />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/admin/maintenance/:id/observations"
-              element={
-                <ProtectedRoute adminOnly>
-                  <Layout>
-                    <TaskObservations />
                   </Layout>
                 </ProtectedRoute>
               }

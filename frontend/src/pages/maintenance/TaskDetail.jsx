@@ -32,8 +32,6 @@ const TaskDetail = () => {
   const [showAddObservation, setShowAddObservation] = useState(false)
   const [observationText, setObservationText] = useState('')
   const [observationImages, setObservationImages] = useState([])
-  const [uploadedImageUrls, setUploadedImageUrls] = useState([])
-  const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -44,9 +42,20 @@ const TaskDetail = () => {
   const fetchTaskDetails = async () => {
     try {
       setLoading(true)
-      // Fetch defect details (defects are tasks for maintenance staff)
+      // Fetch defect details (defects are treated as tasks for maintenance staff)
       const response = await api.defects.get(id)
-      setTask(response.data.defect)
+      console.log('Task response:', response) // Debug log
+      
+      // Handle different response structures
+      const taskData = response.data?.defect || response.defect || response.data?.data?.defect
+      
+      if (!taskData) {
+        console.error('Task not found in response:', response)
+        error('Task not found')
+        return
+      }
+      
+      setTask(taskData)
     } catch (err) {
       console.error('Error fetching task details:', err)
       error('Failed to load task details')
@@ -57,9 +66,9 @@ const TaskDetail = () => {
 
   const fetchObservations = async () => {
     try {
-      // Use defects API for observations (defects are tasks)
+      // Use defects API for observations (defects are tasks for maintenance staff)
       const response = await api.defects.getObservations(id)
-      setObservations(response.data.observations || [])
+      setObservations(response.data?.observations || [])
     } catch (err) {
       console.error('Error fetching observations:', err)
     }
@@ -74,34 +83,8 @@ const TaskDetail = () => {
     setObservationImages(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleUploadImages = async () => {
-    if (observationImages.length === 0) return []
-
-    try {
-      setUploading(true)
-      const response = await api.maintenance.uploadObservationImages(observationImages)
-      
-      if (response.success) {
-        const urls = response.data.images.map(img => ({
-          url: img.url,
-          description: '',
-          capturedAt: new Date().toISOString()
-        }))
-        setUploadedImageUrls(prev => [...prev, ...urls])
-        setObservationImages([])
-        return urls
-      }
-    } catch (err) {
-      console.error('Error uploading images:', err)
-      error('Failed to upload images')
-      return []
-    } finally {
-      setUploading(false)
-    }
-  }
-
   const handleSubmitObservation = async () => {
-    if (!observationText.trim() && observationImages.length === 0 && uploadedImageUrls.length === 0) {
+    if (!observationText.trim() && observationImages.length === 0) {
       error('Please add text or images to the observation')
       return
     }
@@ -109,16 +92,9 @@ const TaskDetail = () => {
     try {
       setSubmitting(true)
 
-      // Upload any pending images
-      let imageUrls = [...uploadedImageUrls]
-      if (observationImages.length > 0) {
-        const newUrls = await handleUploadImages()
-        imageUrls = [...imageUrls, ...newUrls]
-      }
-
       const observationData = {
         text: observationText.trim(),
-        images: imageUrls
+        images: observationImages // Pass File objects directly
       }
 
       // Use defects API for observations (defects are tasks)
@@ -128,7 +104,6 @@ const TaskDetail = () => {
         success('Observation added successfully')
         setObservationText('')
         setObservationImages([])
-        setUploadedImageUrls([])
         setShowAddObservation(false)
         fetchObservations()
       }
@@ -321,17 +296,10 @@ const TaskDetail = () => {
                           accept="image/*"
                           onChange={handleImageSelect}
                           className="hidden"
+                          max="5"
                         />
                       </label>
-                      {observationImages.length > 0 && (
-                        <button
-                          onClick={handleUploadImages}
-                          disabled={uploading}
-                          className="btn-primary btn-sm"
-                        >
-                          {uploading ? 'Uploading...' : `Upload ${observationImages.length} image(s)`}
-                        </button>
-                      )}
+                      <span className="text-xs text-gray-500">Max 5 images, 5MB each</span>
                     </div>
 
                     {/* Preview selected images */}
@@ -350,23 +318,8 @@ const TaskDetail = () => {
                             >
                               <X className="h-3 w-3" />
                             </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Preview uploaded images */}
-                    {uploadedImageUrls.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {uploadedImageUrls.map((img, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={`${api.get.defaults?.baseURL || 'http://localhost:8000'}${img.url}`}
-                              alt={`Uploaded ${index + 1}`}
-                              className="w-full h-24 object-cover rounded"
-                            />
-                            <span className="absolute top-1 left-1 px-2 py-1 bg-green-500 text-white text-xs rounded">
-                              ✓ Uploaded
+                            <span className="absolute bottom-1 left-1 px-2 py-1 bg-black/50 text-white text-xs rounded">
+                              {(file.size / 1024 / 1024).toFixed(2)}MB
                             </span>
                           </div>
                         ))}
@@ -381,7 +334,6 @@ const TaskDetail = () => {
                         setShowAddObservation(false)
                         setObservationText('')
                         setObservationImages([])
-                        setUploadedImageUrls([])
                       }}
                       className="btn-secondary"
                     >
@@ -389,7 +341,7 @@ const TaskDetail = () => {
                     </button>
                     <button
                       onClick={handleSubmitObservation}
-                      disabled={submitting || (!observationText.trim() && uploadedImageUrls.length === 0 && observationImages.length === 0)}
+                      disabled={submitting || (!observationText.trim() && observationImages.length === 0)}
                       className="btn-primary"
                     >
                       <Save className="h-4 w-4 mr-2" />

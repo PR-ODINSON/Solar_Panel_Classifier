@@ -464,7 +464,28 @@ const api = {
 
     addObservation: async (defectId, observationData) => {
       try {
-        const response = await apiClient.post(`/api/defects/${defectId}/observations`, observationData)
+        // Create FormData for multipart/form-data submission
+        const formData = new FormData()
+        
+        // Add text if provided
+        if (observationData.text) {
+          formData.append('text', observationData.text)
+        }
+        
+        // Add image files if provided
+        if (observationData.images && observationData.images.length > 0) {
+          observationData.images.forEach(image => {
+            if (image instanceof File) {
+              formData.append('images', image)
+            }
+          })
+        }
+        
+        const response = await apiClient.post(`/api/defects/${defectId}/observations`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
         return response.data
       } catch (error) {
         console.error('Error adding observation:', error)
@@ -665,7 +686,29 @@ const api = {
 
     addObservation: async (taskId, observationData) => {
       try {
-        const response = await apiClient.post(`/api/maintenance/${taskId}/observations`, observationData)
+        // Create FormData for multipart/form-data upload
+        const formData = new FormData()
+        
+        // Add text if provided
+        if (observationData.text) {
+          formData.append('text', observationData.text)
+        }
+        
+        // Add images if provided
+        if (observationData.images && observationData.images.length > 0) {
+          // If images are File objects, append them directly
+          observationData.images.forEach(image => {
+            if (image instanceof File) {
+              formData.append('images', image)
+            }
+          })
+        }
+        
+        const response = await apiClient.post(`/api/maintenance/${taskId}/observations`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
         return response.data
       } catch (error) {
         console.error('Error adding observation:', error)

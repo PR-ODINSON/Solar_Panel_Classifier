@@ -13,6 +13,7 @@ const DefectDetail = () => {
   
   const [defect, setDefect] = useState(null)
   const [inspectionData, setInspectionData] = useState(null)
+  const [observations, setObservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorState, setErrorState] = useState(null)
   const [newNote, setNewNote] = useState('')
@@ -39,6 +40,17 @@ const DefectDetail = () => {
             console.error('Error fetching inspection:', inspErr)
             // Don't fail the whole request if inspection fetch fails
           }
+        }
+        
+        // Fetch observations from maintenance staff
+        try {
+          const obsResponse = await api.defects.getObservations(id)
+          if (obsResponse.success) {
+            setObservations(obsResponse.data.observations || [])
+          }
+        } catch (obsErr) {
+          console.error('Error fetching observations:', obsErr)
+          // Don't fail the whole request if observations fetch fails
         }
       } else {
         setErrorState('Failed to fetch defect details')
@@ -644,6 +656,66 @@ const DefectDetail = () => {
                     <div className="text-primary-600 dark:text-primary-400">→</div>
                   </div>
                 </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Observations from Maintenance Staff */}
+          {observations && observations.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Maintenance Observations
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Updates from assigned maintenance staff
+                </p>
+              </div>
+              <div className="card-body">
+                <div className="space-y-4">
+                  {observations.map((obs, index) => (
+                    <div key={obs._id || index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Wrench className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {obs.createdBy ? `${obs.createdBy.firstName} ${obs.createdBy.lastName}` : 'Maintenance Staff'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(obs.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      {obs.text && (
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{obs.text}</p>
+                      )}
+                      {obs.images && obs.images.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                          {obs.images.map((imgUrl, imgIndex) => (
+                            <div 
+                              key={imgIndex} 
+                              className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setSelectedImage({
+                                url: `http://localhost:8000${imgUrl}`,
+                                title: `Observation Image ${imgIndex + 1}`,
+                                description: obs.text || 'Maintenance observation image'
+                              })}
+                            >
+                              <img 
+                                src={`http://localhost:8000${imgUrl}`}
+                                alt={`Observation ${imgIndex + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" font-size="14" text-anchor="middle" fill="%23999" dy=".3em"%3EImage%3C/text%3E%3C/svg%3E'
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

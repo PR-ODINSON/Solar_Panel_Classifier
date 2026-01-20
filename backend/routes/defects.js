@@ -1,9 +1,41 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs-extra';
 import Defect from '../models/Defect.js';
 import Panel from '../models/Panel.js';
 import { authenticate, requireMaintenanceOrAdmin, createRateLimit } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Configure multer for observation image uploads
+const observationStorage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+        const uploadDir = path.join(process.cwd(), 'uploads', 'observations');
+        await fs.ensureDir(uploadDir);
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'obs-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const observationUpload = multer({
+    storage: observationStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB per file
+        files: 5 // Maximum 5 files
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WEBP are allowed.'));
+        }
+    }
+});
 
 // Rate limiting
 const defectRateLimit = createRateLimit(15 * 60 * 1000, 30); // 30 requests per 15 minutes
@@ -603,16 +635,22 @@ router.get('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (
 
 /**
  * @route   POST /api/defects/:id/observations
- * @desc    Add observation to a defect
+ * @desc    Add observation to a defect with optional images
  * @access  Private
  */
-router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, observationUpload.array('images', 5), async (req, res) => {
+    const uploadedFiles = req.files || [];
+    
     try {
-        const { text, images } = req.body;
+        const { text } = req.body;
 
         const defect = await Defect.findById(req.params.id);
 
         if (!defect) {
+            // Cleanup uploaded files if defect not found
+            for (const file of uploadedFiles) {
+                await fs.remove(file.path).catch(err => console.error('File cleanup error:', err));
+            }
             return res.status(404).json({
                 success: false,
                 message: 'Defect not found'
@@ -622,15 +660,22 @@ router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async 
         // Check access
         if (req.user.role !== 'admin' && 
             defect.assignedTo?.toString() !== req.user._id.toString()) {
+            // Cleanup uploaded files if unauthorized
+            for (const file of uploadedFiles) {
+                await fs.remove(file.path).catch(err => console.error('File cleanup error:', err));
+            }
             return res.status(403).json({
                 success: false,
                 message: 'Only assigned maintenance staff can add observations'
             });
         }
 
+        // Build image URLs from uploaded files
+        const imageUrls = uploadedFiles.map(file => `/uploads/observations/${file.filename}`);
+
         const observation = {
-            text,
-            images: images || [],
+            text: text || '',
+            images: imageUrls,
             createdBy: req.user._id,
             createdAt: new Date()
         };
@@ -655,6 +700,12 @@ router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async 
 
     } catch (error) {
         console.error('Add defect observation error:', error);
+        
+        // Cleanup uploaded files on error
+        for (const file of uploadedFiles) {
+            await fs.remove(file.path).catch(err => console.error('File cleanup error:', err));
+        }
+        
         res.status(500).json({
             success: false,
             message: 'Failed to add observation',

@@ -1,10 +1,55 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs-extra';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import MaintenanceTask from '../models/MaintenanceTask.js';
 import Panel from '../models/Panel.js';
 import User from '../models/User.js';
 import { authenticate, requireMaintenanceOrAdmin, requireAdmin, createRateLimit } from '../middleware/auth.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const router = express.Router();
+
+// Create uploads directory for observations
+const observationUploadsDir = path.join(__dirname, '..', 'uploads', 'observations');
+fs.ensureDirSync(observationUploadsDir);
+
+// Configure multer for observation images
+const observationStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, observationUploadsDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        const basename = path.basename(file.originalname, ext);
+        cb(null, `observation-${req.params.id}-${uniqueSuffix}${ext}`);
+    }
+});
+
+const observationUpload = multer({
+    storage: observationStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit per file
+        files: 5 // Maximum 5 files per observation
+    },
+    fileFilter: (req, file, cb) => {
+        // Accept images only
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only image files (JPEG, JPG, PNG, GIF, WEBP) are allowed!'));
+        }
+    }
+});
 
 // Rate limiting
 const maintenanceRateLimit = createRateLimit(15 * 60 * 1000, 30); // 30 requests per 15 minutes
@@ -707,15 +752,21 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
 
 /**
  * @route   POST /api/maintenance/:id/observations
- * @desc    Add observation to a maintenance task
- * @access  Private
+ * @desc    Add observation to a maintenance task with optional images
+ * @access  Private (Maintenance Staff or Admin)
  */
-router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, observationUpload.array('images', 5), async (req, res) => {
     try {
-        const { text, images } = req.body;
+        const { text, imageDescriptions } = req.body;
+        const uploadedFiles = req.files || [];
 
         // Validate at least one field is provided
-        if (!text && (!images || images.length === 0)) {
+        if (!text && uploadedFiles.length === 0) {
+            // Clean up any uploaded files
+            uploadedFiles.forEach(file => {
+                fs.remove(file.path).catch(err => console.error('Error removing file:', err));
+            });
+            
             return res.status(400).json({
                 success: false,
                 message: 'At least text or images must be provided for observation'
@@ -725,6 +776,11 @@ router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async 
         const task = await MaintenanceTask.findById(req.params.id);
 
         if (!task) {
+            // Clean up uploaded files
+            uploadedFiles.forEach(file => {
+                fs.remove(file.path).catch(err => console.error('Error removing file:', err));
+            });
+            
             return res.status(404).json({
                 success: false,
                 message: 'Maintenance task not found'
@@ -735,16 +791,41 @@ router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async 
         if (req.user.role !== 'admin' && 
             task.assignedTo?.toString() !== req.user._id.toString() &&
             !task.assignedTeam?.some(member => member.toString() === req.user._id.toString())) {
+            
+            // Clean up uploaded files
+            uploadedFiles.forEach(file => {
+                fs.remove(file.path).catch(err => console.error('Error removing file:', err));
+            });
+            
             return res.status(403).json({
                 success: false,
                 message: 'You do not have permission to add observations to this task'
             });
         }
 
+        // Process image descriptions if provided
+        let descriptions = [];
+        if (imageDescriptions) {
+            try {
+                descriptions = typeof imageDescriptions === 'string' 
+                    ? JSON.parse(imageDescriptions) 
+                    : imageDescriptions;
+            } catch (e) {
+                descriptions = [];
+            }
+        }
+
+        // Create image objects with URLs
+        const images = uploadedFiles.map((file, index) => ({
+            url: `/uploads/observations/${file.filename}`,
+            description: descriptions[index] || '',
+            capturedAt: new Date()
+        }));
+
         // Create observation object
         const observation = {
             text: text || '',
-            images: images || [],
+            images: images,
             author: req.user._id,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -755,24 +836,43 @@ router.post('/:id/observations', authenticate, requireMaintenanceOrAdmin, async 
         await task.save();
 
         // Populate the observation with author details
-        await task.populate('observations.author', 'firstName lastName username');
+        await task.populate('observations.author', 'firstName lastName username email');
 
         res.status(201).json({
             success: true,
             message: 'Observation added successfully',
             data: {
-                observation: task.observations[task.observations.length - 1]
+                observation: task.observations[task.observations.length - 1],
+                uploadedImages: images.length
             }
         });
 
     } catch (error) {
         console.error('Add observation error:', error);
         
+        // Clean up uploaded files on error
+        if (req.files) {
+            req.files.forEach(file => {
+                fs.remove(file.path).catch(err => console.error('Error removing file:', err));
+            });
+        }
+        
         if (error.name === 'ValidationError') {
             return res.status(400).json({
                 success: false,
                 message: 'Validation error',
                 errors: Object.values(error.errors).map(err => err.message)
+            });
+        }
+
+        if (error instanceof multer.MulterError) {
+            return res.status(400).json({
+                success: false,
+                message: error.code === 'LIMIT_FILE_SIZE' 
+                    ? 'File size too large. Maximum 5MB per file.' 
+                    : error.code === 'LIMIT_FILE_COUNT'
+                    ? 'Too many files. Maximum 5 images per observation.'
+                    : error.message
             });
         }
 

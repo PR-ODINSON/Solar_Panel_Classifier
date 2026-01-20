@@ -135,8 +135,9 @@ directories.forEach(dir => {
     fs.ensureDirSync(dir);
 });
 
-// Mount static files for outputs
+// Mount static files for outputs and uploads
 app.use('/outputs', express.static(OUTPUT_DIR));
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({

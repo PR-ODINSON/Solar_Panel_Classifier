@@ -57,7 +57,6 @@ const Layout = ({ children }) => {
         { name: 'Upload & Infer', href: '/upload-infer', icon: Upload },
         { name: 'Inspection Reports', href: '/inspections', icon: FileText },
         { name: 'Defect Management', href: '/defects', icon: AlertTriangle },
-        { name: 'Maintenance Tasks', href: '/admin/maintenance', icon: Settings },
         { name: 'Staff Management', href: '/staff', icon: Users }
       ]
     }
@@ -180,7 +179,6 @@ const Layout = ({ children }) => {
                     '/inspections': 'Inspection Reports',
                     '/defects': 'Defect Management',
                     '/staff': 'Staff Management',
-                    '/admin/maintenance': 'Maintenance Tasks',
                     '/maintenance/dashboard': 'Maintenance Dashboard',
                     '/maintenance/tasks': 'My Tasks',
                     '/maintenance/defects': 'Defect Management',
@@ -195,9 +193,6 @@ const Layout = ({ children }) => {
                   }
                   if (location.pathname.startsWith('/maintenance/tasks/')) {
                     return 'Task Details'
-                  }
-                  if (location.pathname.startsWith('/admin/maintenance/')) {
-                    return 'Task Observations'
                   }
                   return routeTitle[location.pathname] || 'Dashboard'
                 })()}

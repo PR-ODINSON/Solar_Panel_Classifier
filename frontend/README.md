@@ -109,12 +109,12 @@ frontend/
 ### Demo Credentials
 
 **Admin User**:
-- Username: `admin`
+- Email: `admin@insolare.ac.in`
 - Password: `admin123`
 
 **Maintenance Staff**:
-- Username: `maintenance`
-- Password: `maintenance123`
+- Email: `prithvi@insolare.ac.in`
+- Password: `prithvi123`
 
 ## API Integration
 
