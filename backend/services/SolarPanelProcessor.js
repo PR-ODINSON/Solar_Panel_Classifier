@@ -409,31 +409,46 @@ if __name__ == "__main__":
                         // Extract JSON from stdout (handle any stray output)
                         const output = stdout.trim();
                         
+                        if (!output) {
+                            reject(new Error('YOLO detection produced no output'));
+                            return;
+                        }
+                        
                         // Try to extract valid JSON - look for complete array/object
                         let jsonStr = output;
                         
-                        // Find the last occurrence of '[' or '{' which should be our JSON
-                        const arrayStart = output.lastIndexOf('[');
-                        const objectStart = output.lastIndexOf('{');
+                        // Find the first occurrence of '[' or '{' which should start our JSON
+                        const arrayStart = output.indexOf('[');
+                        const objectStart = output.indexOf('{');
                         
                         if (arrayStart !== -1 || objectStart !== -1) {
-                            const start = Math.max(arrayStart, objectStart);
+                            // Use the first one that appears (skip any debug output before JSON)
+                            const start = arrayStart !== -1 && objectStart !== -1 
+                                ? Math.min(arrayStart, objectStart)
+                                : Math.max(arrayStart, objectStart);
+                            
                             jsonStr = output.substring(start);
                             
-                            // Also look for where it ends (either ] or })
-                            const arrayEnd = jsonStr.lastIndexOf(']');
-                            const objectEnd = jsonStr.lastIndexOf('}');
-                            const end = Math.max(arrayEnd, objectEnd);
-                            
-                            if (end !== -1) {
-                                jsonStr = jsonStr.substring(0, end + 1);
+                            // Find the matching closing bracket
+                            if (output[start] === '[') {
+                                const arrayEnd = jsonStr.lastIndexOf(']');
+                                if (arrayEnd !== -1) {
+                                    jsonStr = jsonStr.substring(0, arrayEnd + 1);
+                                }
+                            } else {
+                                const objectEnd = jsonStr.lastIndexOf('}');
+                                if (objectEnd !== -1) {
+                                    jsonStr = jsonStr.substring(0, objectEnd + 1);
+                                }
                             }
                         }
                         
                         const results = JSON.parse(jsonStr);
                         resolve(results);
                     } catch (error) {
-                        reject(new Error(`Failed to parse YOLO results: ${error.message}. Output: ${stdout.substring(0, 300)}`));
+                        // Include full output for debugging (up to 1000 chars)
+                        const debugOutput = stdout.substring(0, 1000);
+                        reject(new Error(`Failed to parse YOLO results: ${error.message}. Output: ${debugOutput}`));
                     }
                 } else {
                     reject(new Error(`YOLO detection failed: ${stderr}`));
@@ -476,31 +491,46 @@ if __name__ == "__main__":
                         // Extract JSON from stdout (handle any stray output)
                         const output = stdout.trim();
                         
+                        if (!output) {
+                            reject(new Error('Panel classification produced no output'));
+                            return;
+                        }
+                        
                         // Try to extract valid JSON - look for complete array/object
                         let jsonStr = output;
                         
-                        // Find the last occurrence of '[' or '{' which should be our JSON
-                        const arrayStart = output.lastIndexOf('[');
-                        const objectStart = output.lastIndexOf('{');
+                        // Find the first occurrence of '[' or '{' which should start our JSON
+                        const arrayStart = output.indexOf('[');
+                        const objectStart = output.indexOf('{');
                         
                         if (arrayStart !== -1 || objectStart !== -1) {
-                            const start = Math.max(arrayStart, objectStart);
+                            // Use the first one that appears (skip any debug output before JSON)
+                            const start = arrayStart !== -1 && objectStart !== -1 
+                                ? Math.min(arrayStart, objectStart)
+                                : Math.max(arrayStart, objectStart);
+                            
                             jsonStr = output.substring(start);
                             
-                            // Also look for where it ends (either ] or })
-                            const arrayEnd = jsonStr.lastIndexOf(']');
-                            const objectEnd = jsonStr.lastIndexOf('}');
-                            const end = Math.max(arrayEnd, objectEnd);
-                            
-                            if (end !== -1) {
-                                jsonStr = jsonStr.substring(0, end + 1);
+                            // Find the matching closing bracket
+                            if (output[start] === '[') {
+                                const arrayEnd = jsonStr.lastIndexOf(']');
+                                if (arrayEnd !== -1) {
+                                    jsonStr = jsonStr.substring(0, arrayEnd + 1);
+                                }
+                            } else {
+                                const objectEnd = jsonStr.lastIndexOf('}');
+                                if (objectEnd !== -1) {
+                                    jsonStr = jsonStr.substring(0, objectEnd + 1);
+                                }
                             }
                         }
                         
                         const results = JSON.parse(jsonStr);
                         resolve(results);
                     } catch (error) {
-                        reject(new Error(`Failed to parse classification results: ${error.message}. Output: ${stdout.substring(0, 300)}`));
+                        // Include full output for debugging (up to 1000 chars)
+                        const debugOutput = stdout.substring(0, 1000);
+                        reject(new Error(`Failed to parse classification results: ${error.message}. Output: ${debugOutput}`));
                     }
                 } else {
                     reject(new Error(`Panel classification failed: ${stderr}`));
