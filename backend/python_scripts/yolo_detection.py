@@ -12,6 +12,9 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 os.environ['YOLO_VERBOSE'] = 'False'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# Disable ultralytics telemetry and checks
+os.environ['YOLO_DISABLE_ANALYTICS'] = '1'
+os.environ['YOLO_DISABLE_CHECKS'] = '1'
 
 def is_likely_panel(crop):
     """Filter to identify likely solar panels with relaxed thresholds"""
@@ -47,8 +50,11 @@ def main():
         if img is None:
             continue
 
-        # Run YOLO detection with lower thresholds for better detection (suppress verbose output)
-        detections = model(img, conf=0.35, iou=0.45, verbose=False)[0]
+        # Run YOLO detection with output completely suppressed
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            detections = model(img, conf=0.35, iou=0.45, verbose=False)[0]
         valid_boxes = []
         
         for box in detections.boxes:
@@ -71,8 +77,10 @@ def main():
                 'detections': len(valid_boxes)
             })
     
-    # Return results as JSON
-    print(json.dumps(results))
+    # Return results as JSON - write directly to stdout and flush
+    import sys
+    sys.stdout.write(json.dumps(results))
+    sys.stdout.flush()
 
 if __name__ == "__main__":
     main()

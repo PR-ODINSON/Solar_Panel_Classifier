@@ -224,8 +224,10 @@ def main():
         if tile_results:
             classification_results.extend(tile_results)
     
-    # Return results as JSON
-    print(json.dumps(classification_results))
+    # Return results as JSON - write directly to stdout and flush
+    import sys
+    sys.stdout.write(json.dumps(classification_results))
+    sys.stdout.flush()
 
 if __name__ == "__main__":
     main()
