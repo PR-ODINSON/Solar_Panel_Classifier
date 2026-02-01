@@ -1,0 +1,180 @@
+# --------------------------------
+# OS / System Files
+# --------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# --------------------------------
+# Python
+# --------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+*.manifest
+*.spec
+.env
+.venv/
+venv/
+ENV/
+env.bak/
+pip-wheel-metadata/
+sitecustomize.py
+
+# --------------------------------
+# Jupyter Notebooks
+# --------------------------------
+.ipynb_checkpoints/
+*.ipynb~
+
+# --------------------------------
+# IDEs / Editors
+# --------------------------------
+
+# VSCode
+.vscode/
+.history/
+*.code-workspace
+
+# JetBrains (PyCharm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# --------------------------------
+# Logs / Temp / Caches
+# --------------------------------
+*.log
+logs/
+log/
+*.tmp
+*.bak
+*.swp
+*.swo
+*.swn
+*.pid
+.cache/
+.pytest_cache/
+coverage/
+.coverage
+.tox/
+nosetests.xml
+test-results/
+htmlcov/
+
+# --------------------------------
+# Environment / Secrets / Tokens
+# --------------------------------
+.env
+
+.secrets/
+*.key
+*.pem
+*.crt
+credentials.json
+config.yaml
+settings.ini
+token.json
+
+# --------------------------------
+# Machine Learning / Data
+# --------------------------------
+*.h5
+*.hdf5
+*.ckpt
+*.pt
+*.pb
+*.joblib
+*.tflite
+*.onnx
+*.npz
+*.npy
+*.csv
+*.tsv
+*.arff
+*.sav
+*.pkl
+*.model
+*.log
+data/
+# Ignore ML models but not backend/models (database models)
+
+*.h5
+*.onnx
+outputs/
+runs/
+checkpoints/
+wandb/
+mlruns/
+tensorboard/
+
+# Hugging Face / Transformers
+*.msgpack
+*.safetensors
+
+# --------------------------------
+# Git / CI
+# --------------------------------
+.git/
+.gitignore
+.gitattributes
+*.orig
+*.patch
+*.rej
+
+# --------------------------------
+# Frontend (React / Next.js / Node.js)
+# --------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+.next/
+out/
+build/
+dist/
+*.lock
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --------------------------------
+# Docker
+# --------------------------------
+*.dockerfile
+Dockerfile.*
+.dockerignore
+
+# --------------------------------
+# Miscellaneous
+# --------------------------------
+*.sqlite3
+*.db
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7z
+*.bak
+*.orig
+*.tmp
+*.log
+*.pdf
+*.xls
+*.xlsx
