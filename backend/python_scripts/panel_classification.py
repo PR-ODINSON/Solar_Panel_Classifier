@@ -6,6 +6,7 @@ import json
 import torch
 import numpy as np
 import warnings
+import logging
 from PIL import Image as PILImage, ImageDraw, ImageFont
 from torchvision import transforms
 from torchvision.models import resnet50
@@ -15,6 +16,9 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 torch.set_num_threads(1)  # Suppress threading messages
+
+# Disable all logging
+logging.getLogger().setLevel(logging.CRITICAL)
 
 def get_class_color(label):
     """Get color for each classification class"""
@@ -150,14 +154,15 @@ def main():
         transforms.Normalize([0.5]*3, [0.5]*3)
     ])
     
-    # Load classifier (suppress warnings)
+    # Load classifier (suppress all output)
     class_names = ["Bird-drop", "Clean", "Dusty", "Physical-Damage"]
     import contextlib
-    with contextlib.redirect_stdout(open(os.devnull, 'w')), \
-         contextlib.redirect_stderr(open(os.devnull, 'w')):
+    import io
+    with contextlib.redirect_stdout(io.StringIO()), \
+         contextlib.redirect_stderr(io.StringIO()):
         model = resnet50()
         model.fc = torch.nn.Linear(model.fc.in_features, len(class_names))
-        model.load_state_dict(torch.load(classifier_path, map_location="cpu"), strict=False)
+        model.load_state_dict(torch.load(classifier_path, map_location="cpu", weights_only=False), strict=False)
         model.eval()
         model.to(device)
     

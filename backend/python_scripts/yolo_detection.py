@@ -5,16 +5,27 @@ import cv2
 import json
 import numpy as np
 import warnings
-from ultralytics import YOLO
-from pathlib import Path
+import logging
 
-# Suppress warnings and YOLO output
+# Suppress ALL output before importing ultralytics
 warnings.filterwarnings('ignore')
 os.environ['YOLO_VERBOSE'] = 'False'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-# Disable ultralytics telemetry and checks
 os.environ['YOLO_DISABLE_ANALYTICS'] = '1'
 os.environ['YOLO_DISABLE_CHECKS'] = '1'
+
+# Disable all logging
+logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
+logging.getLogger().setLevel(logging.CRITICAL)
+
+from ultralytics import YOLO
+from pathlib import Path
+
+# Completely disable ultralytics settings and logging
+import ultralytics
+ultralytics.checks.check_requirements = lambda x: None
+if hasattr(ultralytics.utils, 'LOGGER'):
+    ultralytics.utils.LOGGER.setLevel(logging.CRITICAL)
 
 def is_likely_panel(crop):
     """Filter to identify likely solar panels with relaxed thresholds"""
@@ -34,10 +45,14 @@ def main():
     tile_dir = sys.argv[2]
     boxes_dir = sys.argv[3]
     
-    # Load YOLO model (suppress output)
+    # Load YOLO model (suppress output completely)
     import contextlib
-    with contextlib.redirect_stdout(open(os.devnull, 'w')):
+    import io
+    # Redirect both stdout and stderr to devnull
+    with contextlib.redirect_stdout(io.StringIO()), \
+         contextlib.redirect_stderr(io.StringIO()):
         model = YOLO(model_path)
+        model.overrides['verbose'] = False
     
     results = []
     
@@ -53,8 +68,10 @@ def main():
         # Run YOLO detection with output completely suppressed
         import contextlib
         import io
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            detections = model(img, conf=0.35, iou=0.45, verbose=False)[0]
+        with contextlib.redirect_stdout(io.StringIO()), \
+             contextlib.redirect_stderr(io.StringIO()):
+            # Use stream=False to disable streaming output
+            detections = model.predict(img, conf=0.35, iou=0.45, verbose=False, stream=False)[0]
         valid_boxes = []
         
         for box in detections.boxes:
