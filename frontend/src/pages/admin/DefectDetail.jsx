@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Input, Badge, Modal, Card, Skeleton, EmptyState } from '../../components/ui'
 
 const DefectDetail = () => {
   const { id } = useParams()
@@ -139,15 +140,15 @@ const DefectDetail = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <RefreshCw className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Loading defect details...
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Please wait while we fetch the defect information.
-            </p>
+        <Skeleton.Card />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton.Card />
+            <Skeleton.Card />
+          </div>
+          <div className="space-y-6">
+            <Skeleton.Card />
+            <Skeleton.Card />
           </div>
         </div>
       </div>
@@ -160,11 +161,10 @@ const DefectDetail = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link
-              to={isAdmin() ? "/defects" : "/maintenance/defects"}
-              className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-            >
-              <ArrowLeft className="h-5 w-5" />
+            <Link to={isAdmin() ? "/defects" : "/maintenance/defects"}>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Defect Details
@@ -172,24 +172,15 @@ const DefectDetail = () => {
           </div>
         </div>
         
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Error loading defect
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {errorState}
-            </p>
-            <button 
-              onClick={fetchDefect}
-              className="btn-primary inline-flex items-center"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Error loading defect"
+          message={errorState}
+        >
+          <Button onClick={fetchDefect} leftIcon={<RefreshCw />}>
+            Try Again
+          </Button>
+        </EmptyState>
       </div>
     )
   }
@@ -200,11 +191,10 @@ const DefectDetail = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link
-              to={isAdmin() ? "/defects" : "/maintenance/defects"}
-              className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-            >
-              <ArrowLeft className="h-5 w-5" />
+            <Link to={isAdmin() ? "/defects" : "/maintenance/defects"}>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Defect Not Found
@@ -212,24 +202,17 @@ const DefectDetail = () => {
           </div>
         </div>
         
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Defect not found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              The defect you're looking for doesn't exist or you don't have permission to view it.
-            </p>
-            <Link 
-              to={isAdmin() ? "/defects" : "/maintenance/defects"}
-              className="btn-primary inline-flex items-center"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Defect not found"
+          message="The defect you're looking for doesn't exist or you don't have permission to view it."
+        >
+          <Link to={isAdmin() ? "/defects" : "/maintenance/defects"}>
+            <Button leftIcon={<ArrowLeft />}>
               Back to Defects
-            </Link>
-          </div>
-        </div>
+            </Button>
+          </Link>
+        </EmptyState>
       </div>
     )
   }
@@ -255,57 +238,15 @@ const DefectDetail = () => {
     }
   }
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'crack': return 'text-red-600 bg-red-100'
-      case 'hotspot': return 'text-orange-600 bg-orange-100'
-      case 'soiling': return 'text-yellow-600 bg-yellow-100'
-      case 'shading': return 'text-purple-600 bg-purple-100'
-      case 'corrosion': return 'text-red-600 bg-red-100'
-      case 'delamination': return 'text-pink-600 bg-pink-100'
-      case 'discoloration': return 'text-yellow-600 bg-yellow-100'
-      case 'burn_mark': return 'text-red-600 bg-red-100'
-      case 'cell_failure': return 'text-red-600 bg-red-100'
-      case 'junction_box_issue': return 'text-orange-600 bg-orange-100'
-      case 'wiring_issue': return 'text-orange-600 bg-orange-100'
-      case 'mounting_issue': return 'text-purple-600 bg-purple-100'
-      case 'glass_breakage': return 'text-red-600 bg-red-100'
-      case 'frame_damage': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
-    }
-  }
-
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'critical': return 'text-red-800 bg-red-200'
-      case 'high': return 'text-red-700 bg-red-200'
-      case 'medium': return 'text-yellow-700 bg-yellow-200'
-      case 'low': return 'text-green-700 bg-green-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'open': return 'text-gray-700 bg-gray-200'
-      case 'in_progress': return 'text-blue-700 bg-blue-200'
-      case 'resolved': return 'text-green-700 bg-green-200'
-      case 'closed': return 'text-green-800 bg-green-300'
-      case 'deferred': return 'text-purple-700 bg-purple-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link
-            to={isAdmin() ? "/defects" : "/maintenance/defects"}
-            className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <ArrowLeft className="h-5 w-5" />
+          <Link to={isAdmin() ? "/defects" : "/maintenance/defects"}>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -317,17 +258,16 @@ const DefectDetail = () => {
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <button 
+          <Button 
+            variant="secondary"
             onClick={fetchDefect}
-            className="btn-secondary inline-flex items-center"
+            leftIcon={<RefreshCw />}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
-          </button>
-          <button className="btn-secondary inline-flex items-center">
-            <Download className="h-4 w-4 mr-2" />
+          </Button>
+          <Button variant="secondary" leftIcon={<Download />}>
             Export Report
-          </button>
+          </Button>
           {isAdmin() && defect.status !== 'resolved' && defect.status !== 'closed' && (
             <select
               className="btn-primary text-sm inline-flex items-center px-3 py-2 border-0"
@@ -348,29 +288,29 @@ const DefectDetail = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Basic Information */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                     Defect Information
                   </h3>
                   <div className="flex items-center space-x-2">
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${getTypeColor(defect.defectType)}`}>
+                    <Badge variant="info">
                       {defect.defectType.replace('_', ' ').toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${getSeverityColor(defect.severity)}`}>
+                    </Badge>
+                    <Badge severity={defect.severity}>
                       {defect.severity.toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(defect.status)}`}>
+                    </Badge>
+                    <Badge status={defect.status}>
                       {defect.status.replace('_', ' ').toUpperCase()}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-4">
                 <div className="flex items-start">
-                  <div className={`p-3 rounded-lg ${getTypeColor(defect.defectType)} mr-4 mt-1`}>
+                  <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mr-4 mt-1">
                     {getDefectIcon(defect.defectType)}
                   </div>
                   <div className="flex-1">
@@ -468,18 +408,18 @@ const DefectDetail = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
 
           {/* Panel Details */}
           {defect.panel && (
-            <div className="card">
-              <div className="card-header">
+            <Card>
+              <Card.Header>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Panel Information
                 </h3>
-              </div>
-              <div className="card-body">
+              </Card.Header>
+              <Card.Body>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700 dark:text-gray-300">Panel ID:</span>
@@ -506,21 +446,21 @@ const DefectDetail = () => {
                     <p className="text-gray-900 dark:text-white">{defect.panel.location?.site || 'N/A'}</p>
                   </div>
                 </div>
-              </div>
-            </div>
+              </Card.Body>
+            </Card>
           )}
         </div>
 
         {/* AI Analysis & Images */}
         <div className="space-y-6">
           {defect.aiAnalysis && (
-            <div className="card">
-              <div className="card-header">
+            <Card>
+              <Card.Header>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   AI Analysis
                 </h3>
-              </div>
-              <div className="card-body">
+              </Card.Header>
+              <Card.Body>
                 <div className="space-y-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700 dark:text-gray-300">Confidence Score:</span>
@@ -547,19 +487,19 @@ const DefectDetail = () => {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
+              </Card.Body>
+            </Card>
           )}
 
           {/* Inspection Images */}
           {inspectionData && (inspectionData.images?.length > 0 || inspectionData.aiAnalysis?.processedImageUrl) && (
-            <div className="card">
-              <div className="card-header">
+            <Card>
+              <Card.Header>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Inspection Images
                 </h3>
-              </div>
-              <div className="card-body">
+              </Card.Header>
+              <Card.Body>
                 <div className="space-y-4">
                   {/* Processed AI Image */}
                   {inspectionData.aiAnalysis?.processedImageUrl && (
@@ -630,18 +570,18 @@ const DefectDetail = () => {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
+              </Card.Body>
+            </Card>
           )}
 
           {defect.inspection && (
-            <div className="card">
-              <div className="card-header">
+            <Card>
+              <Card.Header>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Related Inspection
                 </h3>
-              </div>
-              <div className="card-body">
+              </Card.Header>
+              <Card.Body>
                 <Link 
                   to={`/inspections/${defect.inspection._id}`}
                   className="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all duration-200"
@@ -656,22 +596,22 @@ const DefectDetail = () => {
                     <div className="text-primary-600 dark:text-primary-400">→</div>
                   </div>
                 </Link>
-              </div>
-            </div>
+              </Card.Body>
+            </Card>
           )}
 
           {/* Observations from Maintenance Staff */}
           {observations && observations.length > 0 && (
-            <div className="card">
-              <div className="card-header">
+            <Card>
+              <Card.Header>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Maintenance Observations
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Updates from assigned maintenance staff
                 </p>
-              </div>
-              <div className="card-body">
+              </Card.Header>
+              <Card.Body>
                 <div className="space-y-4">
                   {observations.map((obs, index) => (
                     <div key={obs._id || index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -716,18 +656,18 @@ const DefectDetail = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
+              </Card.Body>
+            </Card>
           )}
 
           {/* Notes Section */}
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                 Notes & Comments
               </h3>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               {/* Add Note Form */}
               <div className="mb-4">
                 <textarea
@@ -737,14 +677,15 @@ const DefectDetail = () => {
                   className="input-field w-full h-20 resize-none"
                 />
                 <div className="flex justify-end mt-2">
-                  <button
+                  <Button
+                    size="sm"
                     onClick={handleAddNote}
                     disabled={!newNote.trim() || addingNote}
-                    className="btn-primary text-sm inline-flex items-center"
+                    loading={addingNote}
+                    leftIcon={<MessageSquare />}
                   >
-                    <MessageSquare className="h-4 w-4 mr-1" />
                     {addingNote ? 'Adding...' : 'Add Note'}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -770,20 +711,20 @@ const DefectDetail = () => {
                   </p>
                 )}
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         </div>
       </div>
 
       {/* Images */}
       {defect.images && defect.images.length > 0 && (
-        <div className="card">
-          <div className="card-header">
+        <Card>
+          <Card.Header>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
               Defect Images
             </h3>
-          </div>
-          <div className="card-body">
+          </Card.Header>
+          <Card.Body>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {defect.images.map((image, index) => (
                 <div key={index} className="space-y-2">
@@ -820,19 +761,19 @@ const DefectDetail = () => {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </Card.Body>
+        </Card>
       )}
 
       {/* Resolution Information */}
       {defect.resolution && (defect.resolution.method || defect.resolution.description) && (
-        <div className="card">
-          <div className="card-header">
+        <Card>
+          <Card.Header>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
               Resolution Details
             </h3>
-          </div>
-          <div className="card-body">
+          </Card.Header>
+          <Card.Body>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               {defect.resolution.method && (
                 <div>
@@ -867,32 +808,26 @@ const DefectDetail = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </Card.Body>
+        </Card>
       )}
       
       {/* Image Modal */}
-      {selectedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-4xl max-h-full">
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
-            >
-              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">{selectedImage.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedImage.description}</p>
-              </div>
-              <div className="p-4">
+      <Modal
+        isOpen={!!selectedImage}
+        onClose={() => setSelectedImage(null)}
+        title={selectedImage?.title || 'Image Preview'}
+        size="xl"
+      >
+        <Modal.Body>
+          {selectedImage && (
+            <>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{selectedImage.description}</p>
+              <div className="flex items-center justify-center">
                 <img 
                   src={selectedImage.url}
                   alt={selectedImage.title}
-                  className="max-w-full max-h-[70vh] object-contain mx-auto"
+                  className="max-w-full max-h-[70vh] object-contain"
                   onError={(e) => {
                     e.target.style.display = 'none'
                     e.target.nextSibling.style.display = 'flex'
@@ -903,26 +838,27 @@ const DefectDetail = () => {
                   <p className="text-gray-500">Image could not be loaded</p>
                 </div>
               </div>
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                <a
-                  href={selectedImage.url}
-                  download
-                  className="btn-secondary inline-flex items-center mr-3"
-                >
-                  <Download className="h-4 w-4 mr-2" />
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          {selectedImage && (
+            <>
+              <a
+                href={selectedImage.url}
+                download
+              >
+                <Button variant="secondary" leftIcon={<Download />}>
                   Download
-                </a>
-                <button
-                  onClick={() => setSelectedImage(null)}
-                  className="btn-primary"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                </Button>
+              </a>
+              <Button onClick={() => setSelectedImage(null)}>
+                Close
+              </Button>
+            </>
+          )}
+        </Modal.Footer>
+      </Modal>
       
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />

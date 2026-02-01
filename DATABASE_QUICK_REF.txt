@@ -1,0 +1,83 @@
+╔════════════════════════════════════════════════════════════════════╗
+║                    DATABASE QUICK REFERENCE                        ║
+║                         solar_panel_om                             ║
+╚════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────┐
+│ CONNECTION INFO                                                     │
+├────────────────────────────────────────────────────────────────────┤
+│ Host:     ac-h1fdbtd-shard-00-01.qmk1zke.mongodb.net              │
+│ Database: solar_panel_om                                           │
+│ Provider: MongoDB Atlas (Cloud)                                    │
+│ Status:   ✅ Active                                                │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ CURRENT DATA                                                        │
+├────────────────────────────────────────────────────────────────────┤
+│ Users:         2 (ai-system, prithvi)                              │
+│ Inspections:   2 (INS261395175, INS926615297)                     │
+│ Defects:       4 (DEF000001-DEF000004)                            │
+│ Panels:        0                                                   │
+│ Tasks:         0                                                   │
+├────────────────────────────────────────────────────────────────────┤
+│ Total:         8 documents                                         │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ QUICK COMMANDS                                                      │
+├────────────────────────────────────────────────────────────────────┤
+│ Verify Config:    node verify-database-config.js                  │
+│ View All Data:    node fetch-all-data.js                          │
+│ Check User:       node check-user.js                              │
+│ Seed Sample Data: node scripts/seedDatabase.js                    │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ ENVIRONMENT VARIABLES (.env)                                        │
+├────────────────────────────────────────────────────────────────────┤
+│ MONGODB_URI=mongodb+srv://prithraj120_db_user:***@cluster0...     │
+│ DB_NAME=solar_panel_om                                             │
+│ PORT=8000                                                          │
+│ NODE_ENV=development                                               │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ DATA FLOW                                                           │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Frontend (3000) → Backend (8000) → MongoDB Atlas                  │
+│       ↓                  ↓                    ↓                    │
+│   React Pages      Express API         solar_panel_om             │
+│   API Client       Mongoose ORM        (5 collections)             │
+│                                                                     │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ GUARANTEE                                                           │
+├────────────────────────────────────────────────────────────────────┤
+│ ✅ All data comes from MongoDB Atlas only                         │
+│ ✅ No local database connections                                  │
+│ ✅ No duplicate database sources                                  │
+│ ✅ Single connection point (config/database.js)                   │
+│ ✅ All scripts use same database                                  │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                     │
+├────────────────────────────────────────────────────────────────────┤
+│ Problem: Can't connect to database                                 │
+│ Solution: Run 'node verify-database-config.js'                    │
+│                                                                     │
+│ Problem: Seeing different data                                     │
+│ Solution: Check .env file, restart backend server                 │
+│                                                                     │
+│ Problem: Empty database                                            │
+│ Solution: Run 'node scripts/seedDatabase.js'                      │
+└────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════╗
+║ Last Verified: January 21, 2026                                   ║
+║ Status: ✅ OPERATIONAL                                            ║
+║ Documentation: DATABASE_CONFIG.md, DATABASE_LOCK_IN_COMPLETE.md   ║
+╚════════════════════════════════════════════════════════════════════╝

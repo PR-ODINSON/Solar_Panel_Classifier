@@ -15,6 +15,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Badge, Input, Select, Skeleton, EmptyState, Card } from '../../components/ui'
 
 const MaintenanceTasksList = () => {
   const { user } = useAuth()
@@ -40,7 +41,7 @@ const MaintenanceTasksList = () => {
       const params = {
         page: currentPage,
         limit: 10,
-        assignedTo: user?.id || user?._id, // Filter defects assigned to current user
+        assignedTo: user?.id || user?._id, // Filter tasks assigned to current user
         ...filters
       }
       
@@ -49,38 +50,16 @@ const MaintenanceTasksList = () => {
         if (!params[key]) delete params[key]
       })
 
-      // Fetch assigned defects (which are tasks for maintenance staff)
-      const response = await api.defects.list(params)
-      setTasks(response.data.defects || [])
+      // Fetch assigned maintenance tasks
+      const response = await api.maintenance.list(params)
+      setTasks(response.data.tasks || [])
       setTotalPages(response.data.pagination?.pages || 1)
     } catch (err) {
-      console.error('Error fetching assigned defects:', err)
+      console.error('Error fetching maintenance tasks:', err)
       error('Failed to load your tasks')
     } finally {
       setLoading(false)
     }
-  }
-
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      on_hold: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[status] || colors.pending
-  }
-
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[priority] || colors.medium
   }
 
   return (
@@ -96,74 +75,64 @@ const MaintenanceTasksList = () => {
       </div>
 
       {/* Filters */}
-      <div className="card mb-6">
-        <div className="card-body">
+      <Card className="mb-6">
+        <Card.Body>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search tasks..."
-                  value={filters.search}
-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  className="input pl-10 w-full"
-                />
-              </div>
-            </div>
-            <div>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                className="input w-full"
-              >
-                <option value="">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="on_hold">On Hold</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={filters.priority}
-                onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
-                className="input w-full"
-              >
-                <option value="">All Priority</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
+            <Input
+              type="text"
+              placeholder="Search tasks..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              leftIcon={<Search className="h-5 w-5" />}
+            />
+            <Select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              options={[
+                { value: 'pending', label: 'Pending' },
+                { value: 'assigned', label: 'Assigned' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'on_hold', label: 'On Hold' }
+              ]}
+              placeholder="All Status"
+            />
+            <Select
+              value={filters.priority}
+              onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+              options={[
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
+                { value: 'critical', label: 'Critical' }
+              ]}
+              placeholder="All Priority"
+            />
           </div>
-        </div>
-      </div>
+        </Card.Body>
+      </Card>
 
       {/* Tasks List */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="space-y-4">
+          <Skeleton.Card />
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="card">
-          <div className="card-body">
-            <div className="text-center py-12">
-              <Wrench className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No maintenance tasks found
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                {filters.search || filters.status || filters.priority
+        <Card>
+          <Card.Body>
+            <EmptyState
+              icon={<Wrench className="h-16 w-16" />}
+              title="No maintenance tasks found"
+              message={
+                filters.search || filters.status || filters.priority
                   ? 'Try adjusting your filters'
                   : 'You have no assigned tasks at the moment'
-                }
-              </p>
-            </div>
-          </div>
-        </div>
+              }
+            />
+          </Card.Body>
+        </Card>
       ) : (
         <>
           <div className="space-y-4">
@@ -178,18 +147,18 @@ const MaintenanceTasksList = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          {task.defectType?.replace('_', ' ')} Defect - {task.defectId}
+                          {task.title}
                         </h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
+                        <Badge priority={task.priority}>
                           {task.priority}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(task.status)}`}>
+                        </Badge>
+                        <Badge status={task.status}>
                           {task.status?.replace('_', ' ')}
-                        </span>
+                        </Badge>
                       </div>
                       
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                        {task.defectId} | Severity: {task.severity}
+                        {task.taskId} | Type: {task.type?.replace('_', ' ')} | Category: {task.category}
                       </p>
 
                       <p className="text-gray-700 dark:text-gray-300 mb-4 line-clamp-2">
@@ -197,15 +166,15 @@ const MaintenanceTasksList = () => {
                       </p>
 
                       <div className="flex items-center flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
-                        {task.location?.description && (
+                        {task.location?.site && (
                           <div className="flex items-center">
                             <MapPin className="h-4 w-4 mr-2" />
-                            <span>{task.location.description}</span>
+                            <span>{task.location.site}</span>
                           </div>
                         )}
                         <div className="flex items-center">
                           <Calendar className="h-4 w-4 mr-2" />
-                          <span>Detected: {new Date(task.detectedDate).toLocaleDateString()}</span>
+                          <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
                         </div>
                         {task.observations && task.observations.length > 0 && (
                           <div className="flex items-center">
@@ -220,10 +189,10 @@ const MaintenanceTasksList = () => {
 
                     <div className="ml-4">
                       {task.isOverdue && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
+                        <Badge variant="danger">
+                          <AlertTriangle className="h-3 w-3 mr-1 inline" />
                           Overdue
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -239,22 +208,24 @@ const MaintenanceTasksList = () => {
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex space-x-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="btn-secondary btn-sm"
+                  leftIcon={<ChevronLeft className="h-4 w-4" />}
                 >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="btn-secondary btn-sm"
+                  rightIcon={<ChevronRight className="h-4 w-4" />}
                 >
                   Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
+                </Button>
               </div>
             </div>
           )}

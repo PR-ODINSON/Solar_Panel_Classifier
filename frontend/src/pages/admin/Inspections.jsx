@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, Filter, Calendar, MapPin, Camera, Download, Eye, FileText, AlertTriangle, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
+import { Button, Badge, Skeleton, EmptyState } from '../../components/ui'
 
 const Inspections = () => {
   const { isAdmin } = useAuth()
@@ -101,15 +102,6 @@ const Inspections = () => {
     return 'low'
   }
 
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'high': return 'text-red-600 bg-red-100'
-      case 'medium': return 'text-yellow-600 bg-yellow-100'
-      case 'low': return 'text-green-600 bg-green-100'
-      default: return 'text-gray-600 bg-gray-100'
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -123,14 +115,14 @@ const Inspections = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="btn-secondary inline-flex items-center">
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="secondary" leftIcon={<Download />}>
             Export All
-          </button>
+          </Button>
           {isAdmin() && (
-            <Link to="/upload-infer" className="btn-primary inline-flex items-center">
-              <Camera className="h-4 w-4 mr-2" />
-              New Inspection
+            <Link to="/upload-infer">
+              <Button leftIcon={<Camera />}>
+                New Inspection
+              </Button>
             </Link>
           )}
         </div>
@@ -236,38 +228,24 @@ const Inspections = () => {
 
       {/* Loading State */}
       {loading && (
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Loading inspection reports...
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Fetching reports from the backend server.
-            </p>
-          </div>
+        <div className="space-y-4">
+          <Skeleton.Card />
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
       )}
 
       {/* Error State */}
       {error && (
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Error Loading Reports
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {error}
-            </p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="btn-primary"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Error Loading Reports"
+          message={error}
+        >
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </EmptyState>
       )}
 
       {/* Inspections list */}
@@ -283,12 +261,14 @@ const Inspections = () => {
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                           {inspection.inspectionId}
                         </h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(inspection.status)}`}>
+                        <Badge status={inspection.status}>
                           {inspection.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getSeverityColor(inspection.overallRating)}`}>
-                          {inspection.overallRating?.toUpperCase()}
-                        </span>
+                        </Badge>
+                        {inspection.overallRating && (
+                          <Badge severity={inspection.overallRating}>
+                            {inspection.overallRating?.toUpperCase()}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -362,63 +342,62 @@ const Inspections = () => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Link
-                      to={`/inspections/${inspection._id}`}
-                      className="btn-secondary text-sm inline-flex items-center"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Details
+                    <Link to={`/inspections/${inspection._id}`}>
+                      <Button variant="secondary" size="sm" leftIcon={<Eye />}>
+                        View Details
+                      </Button>
                     </Link>
                     
                     {/* Link to defects if any were found */}
                     {(inspection.aiAnalysis?.detectedDefects?.length > 0 || inspection.aiAnalysis?.defectsSummary?.total > 0) && (
-                      <Link
-                        to={`/defects?inspection=${inspection._id}`}
-                        className="btn-primary text-sm inline-flex items-center"
-                      >
-                        <AlertTriangle className="h-4 w-4 mr-1" />
-                        View Defects ({inspection.aiAnalysis?.detectedDefects?.length || inspection.aiAnalysis?.defectsSummary?.total || 0})
+                      <Link to={`/defects?inspection=${inspection._id}`}>
+                        <Button size="sm" leftIcon={<AlertTriangle />}>
+                          View Defects ({inspection.aiAnalysis?.detectedDefects?.length || inspection.aiAnalysis?.defectsSummary?.total || 0})
+                        </Button>
                       </Link>
                     )}
                     
                     {/* Download buttons for AI analysis results */}
                     {inspection.aiAnalysis?.processedImageUrl && (
-                      <button 
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<Download />}
                         onClick={() => {
                           const filename = inspection.aiAnalysis.processedImageUrl.replace('/outputs/', '')
                           handleDownload(filename)
                         }}
-                        className="btn-secondary text-sm inline-flex items-center"
                       >
-                        <Download className="h-4 w-4 mr-1" />
                         Download Image
-                      </button>
+                      </Button>
                     )}
                     
                     {/* Download Excel report if available */}
                     {inspection.aiAnalysis?.processedImageUrl && (
-                      <button 
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<FileText />}
                         onClick={() => {
                           const baseFilename = inspection.aiAnalysis.processedImageUrl.replace('/outputs/', '').replace('_annotated.jpg', '')
                           const excelFilename = `${baseFilename}_report.xlsx`
                           handleDownload(excelFilename)
                         }}
-                        className="btn-secondary text-sm inline-flex items-center"
                       >
-                        <FileText className="h-4 w-4 mr-1" />
                         Download Excel
-                      </button>
+                      </Button>
                     )}
                     
                     {isAdmin() && (
-                      <button
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        leftIcon={<Trash2 />}
                         onClick={() => handleDeleteInspection(inspection._id, inspection.inspectionId)}
-                        className="btn-danger text-sm inline-flex items-center"
                         title="Delete inspection"
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
                         Delete
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -429,26 +408,23 @@ const Inspections = () => {
       )}
 
       {!loading && !error && filteredInspections.length === 0 && (
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No inspection reports found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {inspections.length === 0 
-                ? 'No inspection reports have been generated yet. Upload and process some images to create your first report.'
-                : 'No inspection reports match your current search filters.'
-              }
-            </p>
-            {isAdmin() && (
-              <Link to="/upload-infer" className="btn-primary inline-flex items-center">
-                <Camera className="h-4 w-4 mr-2" />
+        <EmptyState
+          icon={<FileText />}
+          title="No inspection reports found"
+          message={
+            inspections.length === 0
+              ? 'No inspection reports have been generated yet. Upload and process some images to create your first report.'
+              : 'No inspection reports match your current search filters.'
+          }
+        >
+          {isAdmin() && (
+            <Link to="/upload-infer">
+              <Button leftIcon={<Camera />}>
                 Start New Inspection
-              </Link>
-            )}
-          </div>
-        </div>
+              </Button>
+            </Link>
+          )}
+        </EmptyState>
       )}
     </div>
   )

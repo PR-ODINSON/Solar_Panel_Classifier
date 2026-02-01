@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Shield, ArrowLeft } from 'lucide-react'
+import { Button } from '../components/ui'
 
 const Unauthorized = () => {
   const location = useLocation()
@@ -22,19 +23,16 @@ const Unauthorized = () => {
         </p>
         
         <div className="space-y-3">
-          <Link
-            to="/"
-            className="w-full btn-primary inline-flex items-center justify-center"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Return to Dashboard
+          <Link to="/">
+            <Button leftIcon={ArrowLeft} className="w-full">
+              Return to Dashboard
+            </Button>
           </Link>
           
-          <Link
-            to="/settings"
-            className="w-full btn-secondary inline-flex items-center justify-center"
-          >
-            Contact Administrator
+          <Link to="/settings">
+            <Button variant="secondary" className="w-full">
+              Contact Administrator
+            </Button>
           </Link>
         </div>
       </div>

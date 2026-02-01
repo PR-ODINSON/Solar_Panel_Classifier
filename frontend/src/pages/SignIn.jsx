@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Navigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { Eye, EyeOff, Sun, Moon, Zap } from 'lucide-react'
+import { Button } from '../components/ui'
 
 const SignIn = () => {
   const [credentials, setCredentials] = useState({
@@ -213,20 +214,14 @@ const SignIn = () => {
 
               {/* Submit button */}
               <div>
-                <button
+                <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  loading={isLoading}
+                  className="w-full"
                 >
-                  {isLoading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign in'
-                  )}
-                </button>
+                  {isLoading ? 'Signing in...' : 'Sign in'}
+                </Button>
               </div>
             </form>
 
@@ -236,20 +231,24 @@ const SignIn = () => {
                 Demo Credentials:
               </p>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => fillDemoCredentials('admin')}
-                  className="flex-1 btn-secondary text-xs"
+                  className="flex-1"
                 >
                   Admin User
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => fillDemoCredentials('maintenance')}
-                  className="flex-1 btn-secondary text-xs"
+                  className="flex-1"
                 >
                   Maintenance Staff
-                </button>
+                </Button>
               </div>
             </div>
           </div>

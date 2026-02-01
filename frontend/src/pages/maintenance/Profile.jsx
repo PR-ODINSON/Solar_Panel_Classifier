@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Save, Edit, Camera, Key, Bell } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { Button } from '../../components/ui'
 
 const Profile = () => {
   const { user } = useAuth()
@@ -361,9 +362,9 @@ const Profile = () => {
               placeholder="Confirm new password"
             />
           </div>
-          <button className="btn-primary">
+          <Button>
             Update Password
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -416,28 +417,26 @@ const Profile = () => {
         <div className="flex items-center space-x-3">
           {isEditing ? (
             <>
-              <button
+              <Button
                 onClick={handleCancel}
-                className="btn-secondary"
+                variant="secondary"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSave}
-                className="btn-primary inline-flex items-center"
+                leftIcon={Save}
               >
-                <Save className="h-4 w-4 mr-2" />
                 Save Changes
-              </button>
+              </Button>
             </>
           ) : (
-            <button
+            <Button
               onClick={() => setIsEditing(true)}
-              className="btn-primary inline-flex items-center"
+              leftIcon={Edit}
             >
-              <Edit className="h-4 w-4 mr-2" />
               Edit Profile
-            </button>
+            </Button>
           )}
         </div>
       </div>

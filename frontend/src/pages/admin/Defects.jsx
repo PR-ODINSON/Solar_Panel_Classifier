@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Input, Select, Badge, Modal, Card, Skeleton, EmptyState } from '../../components/ui'
 
 const Defects = () => {
   const { isAdmin, user } = useAuth()
@@ -138,14 +139,14 @@ const Defects = () => {
     }
   }
 
-  // Assign defect to maintenance staff (defect becomes a task automatically)
+  // Create maintenance task from defect
   const handleAssignDefectToStaff = (defect) => {
     setSelectedDefect(defect)
     setShowAssignModal(true)
     setSelectedStaff('') // Reset selection
   }
 
-  // Assign defect to selected staff member
+  // Create maintenance task from defect and assign to staff
   const handleConfirmAssignment = async () => {
     if (!selectedStaff) {
       error('Please select a maintenance staff member')
@@ -153,22 +154,26 @@ const Defects = () => {
     }
 
     try {
-      // Update defect with assignment and status
-      const response = await api.defects.update(selectedDefect._id, { 
+      // Create maintenance task from defect
+      const response = await api.maintenance.createFromDefect(selectedDefect._id, { 
         assignedTo: selectedStaff,
-        status: 'in_progress'
+        priority: selectedDefect.priority || selectedDefect.severity,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+        notes: `Task created from defect ${selectedDefect.defectId}`
       })
       
       if (response.success) {
-        success(`Defect assigned successfully! The maintenance staff can now see this in their tasks.`)
+        const staffMember = maintenanceStaff.find(s => s._id === selectedStaff)
+        success(`Maintenance task created and assigned to ${staffMember?.firstName} ${staffMember?.lastName}!`)
         fetchDefects()
         setShowAssignModal(false)
         setSelectedDefect(null)
         setSelectedStaff('')
       }
     } catch (err) {
-      console.error('Error assigning defect:', err)
-      error('Failed to assign defect')
+      console.error('Error creating task from defect:', err)
+      const errorMsg = err.response?.data?.message || 'Failed to create maintenance task'
+      error(errorMsg)
     }
   }
 
@@ -217,57 +222,6 @@ const Defects = () => {
     }
   }
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'crack': return 'text-red-600 bg-red-100'
-      case 'hotspot': return 'text-orange-600 bg-orange-100'
-      case 'soiling': return 'text-yellow-600 bg-yellow-100'
-      case 'shading': return 'text-purple-600 bg-purple-100'
-      case 'corrosion': return 'text-red-600 bg-red-100'
-      case 'delamination': return 'text-pink-600 bg-pink-100'
-      case 'discoloration': return 'text-yellow-600 bg-yellow-100'
-      case 'burn_mark': return 'text-red-600 bg-red-100'
-      case 'cell_failure': return 'text-red-600 bg-red-100'
-      case 'junction_box_issue': return 'text-orange-600 bg-orange-100'
-      case 'wiring_issue': return 'text-orange-600 bg-orange-100'
-      case 'mounting_issue': return 'text-purple-600 bg-purple-100'
-      case 'glass_breakage': return 'text-red-600 bg-red-100'
-      case 'frame_damage': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
-    }
-  }
-
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'critical': return 'text-red-800 bg-red-200'
-      case 'high': return 'text-red-700 bg-red-200'
-      case 'medium': return 'text-yellow-700 bg-yellow-200'
-      case 'low': return 'text-green-700 bg-green-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'open': return 'text-gray-700 bg-gray-200'
-      case 'in_progress': return 'text-blue-700 bg-blue-200'
-      case 'resolved': return 'text-green-700 bg-green-200'
-      case 'closed': return 'text-green-800 bg-green-300'
-      case 'deferred': return 'text-purple-700 bg-purple-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'critical': return 'border-l-4 border-red-600'
-      case 'high': return 'border-l-4 border-orange-500'
-      case 'medium': return 'border-l-4 border-yellow-500'
-      case 'low': return 'border-l-4 border-green-500'
-      default: return 'border-l-4 border-gray-500'
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -281,23 +235,23 @@ const Defects = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button 
+          <Button 
+            variant="secondary"
             onClick={() => fetchDefects()}
             disabled={loading}
-            className="btn-secondary inline-flex items-center"
+            leftIcon={<RefreshCw className={loading ? 'animate-spin' : ''} />}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </button>
+          </Button>
           {isAdmin() && (
             <>
-              <button className="btn-secondary inline-flex items-center">
-                <FileText className="h-4 w-4 mr-2" />
+              <Button variant="secondary" leftIcon={<FileText />}>
                 Generate Report
-              </button>
-              <Link to="/inspections" className="btn-primary inline-flex items-center">
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                View Inspections
+              </Button>
+              <Link to="/inspections">
+                <Button leftIcon={<AlertTriangle />}>
+                  View Inspections
+                </Button>
               </Link>
             </>
           )}
@@ -319,11 +273,10 @@ const Defects = () => {
                 AI Defects Found: {inspectionInfo.aiAnalysis?.detectedDefects?.length || inspectionInfo.aiAnalysis?.defectsSummary?.total || 0}
               </p>
             </div>
-            <Link
-              to="/defects"
-              className="btn-secondary text-sm inline-flex items-center"
-            >
-              View All Defects
+            <Link to="/defects">
+              <Button variant="secondary" size="sm">
+                View All Defects
+              </Button>
             </Link>
           </div>
         </div>
@@ -377,84 +330,64 @@ const Defects = () => {
       <div className="card">
         <div className="card-body">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Search Defects
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search defects..."
-                  className="input-field pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
+            <Input
+              label="Search Defects"
+              leftIcon={<Search />}
+              placeholder="Search defects..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Type
-              </label>
-              <select
-                className="input-field"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="crack">Cracks</option>
-                <option value="hotspot">Hot Spots</option>
-                <option value="soiling">Soiling</option>
-                <option value="shading">Shading</option>
-                <option value="corrosion">Corrosion</option>
-                <option value="delamination">Delamination</option>
-                <option value="discoloration">Discoloration</option>
-                <option value="burn_mark">Burn Mark</option>
-                <option value="cell_failure">Cell Failure</option>
-                <option value="junction_box_issue">Junction Box</option>
-                <option value="wiring_issue">Wiring Issue</option>
-                <option value="mounting_issue">Mounting Issue</option>
-                <option value="glass_breakage">Glass Breakage</option>
-                <option value="frame_damage">Frame Damage</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            <Select
+              label="Type"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Types' },
+                { value: 'crack', label: 'Cracks' },
+                { value: 'hotspot', label: 'Hot Spots' },
+                { value: 'soiling', label: 'Soiling' },
+                { value: 'shading', label: 'Shading' },
+                { value: 'corrosion', label: 'Corrosion' },
+                { value: 'delamination', label: 'Delamination' },
+                { value: 'discoloration', label: 'Discoloration' },
+                { value: 'burn_mark', label: 'Burn Mark' },
+                { value: 'cell_failure', label: 'Cell Failure' },
+                { value: 'junction_box_issue', label: 'Junction Box' },
+                { value: 'wiring_issue', label: 'Wiring Issue' },
+                { value: 'mounting_issue', label: 'Mounting Issue' },
+                { value: 'glass_breakage', label: 'Glass Breakage' },
+                { value: 'frame_damage', label: 'Frame Damage' },
+                { value: 'other', label: 'Other' }
+              ]}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Severity
-              </label>
-              <select
-                className="input-field"
-                value={filterSeverity}
-                onChange={(e) => setFilterSeverity(e.target.value)}
-              >
-                <option value="all">All Severity</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
+            <Select
+              label="Severity"
+              value={filterSeverity}
+              onChange={(e) => setFilterSeverity(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Severity' },
+                { value: 'critical', label: 'Critical' },
+                { value: 'high', label: 'High' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'low', label: 'Low' }
+              ]}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Status
-              </label>
-              <select
-                className="input-field"
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-                <option value="deferred">Deferred</option>
-              </select>
-            </div>
+            <Select
+              label="Status"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'open', label: 'Open' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'resolved', label: 'Resolved' },
+                { value: 'closed', label: 'Closed' },
+                { value: 'deferred', label: 'Deferred' }
+              ]}
+            />
 
             <div className="flex items-end">
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -467,16 +400,10 @@ const Defects = () => {
 
       {/* Loading state */}
       {loading && (
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <RefreshCw className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Loading defects...
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Please wait while we fetch the latest defect data.
-            </p>
-          </div>
+        <div className="space-y-4">
+          <Skeleton.Card />
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
       )}
 
@@ -491,13 +418,9 @@ const Defects = () => {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               {errorState}
             </p>
-            <button 
-              onClick={() => fetchDefects()}
-              className="btn-primary inline-flex items-center"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button onClick={() => fetchDefects()} leftIcon={<RefreshCw />}>
               Try Again
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -506,11 +429,16 @@ const Defects = () => {
       {!loading && !errorState && (
       <div className="space-y-4">
           {displayDefects.map((defect) => (
-          <div key={defect._id} className={`card ${getPriorityColor(defect.priority)}`}>
-            <div className="card-body">
+          <Card key={defect._id} className={`border-l-4 ${
+            defect.priority === 'critical' ? 'border-red-600' :
+            defect.priority === 'high' ? 'border-orange-500' :
+            defect.priority === 'medium' ? 'border-yellow-500' :
+            defect.priority === 'low' ? 'border-green-500' : 'border-gray-500'
+          }`}>
+            <Card.Body>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-lg ${getTypeColor(defect.defectType)}`}>
+                  <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
                     {getDefectIcon(defect.defectType)}
                   </div>
                   <div className="flex-1">
@@ -518,15 +446,15 @@ const Defects = () => {
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                         {defect.defectId}
                       </h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(defect.defectType)}`}>
+                      <Badge variant="info">
                         {defect.defectType.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getSeverityColor(defect.severity)}`}>
+                      </Badge>
+                      <Badge severity={defect.severity}>
                         {defect.severity.toUpperCase()}
-                      </span>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(defect.status)}`}>
+                      </Badge>
+                      <Badge status={defect.status}>
                         {defect.status.replace('_', ' ').toUpperCase()}
-                      </span>
+                      </Badge>
                     </div>
                     
                     <p className="text-gray-600 dark:text-gray-300 mb-3">
@@ -583,23 +511,21 @@ const Defects = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Link
-                    to={isAdmin() ? `/defects/${defect._id}` : `/maintenance/defects/${defect._id}`}
-                    className="btn-secondary text-sm inline-flex items-center"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    View Details
+                  <Link to={isAdmin() ? `/defects/${defect._id}` : `/maintenance/defects/${defect._id}`}>
+                    <Button variant="secondary" size="sm" leftIcon={<Eye />}>
+                      View Details
+                    </Button>
                   </Link>
                   
                   {isAdmin() && defect.status === 'open' && !defect.assignedTo && (
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => handleAssignDefectToStaff(defect)}
-                      className="btn-primary text-sm inline-flex items-center"
+                      leftIcon={<Wrench />}
                       title="Assign defect to maintenance staff"
                     >
-                      <Wrench className="h-4 w-4 mr-1" />
                       Assign Task
-                    </button>
+                    </Button>
                   )}
                   
                   {defect.status !== 'resolved' && defect.status !== 'closed' && (
@@ -617,97 +543,89 @@ const Defects = () => {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         ))}
 
         {displayDefects.length === 0 && (
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No defects found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No defects match your current filters or no defects have been detected yet.
-            </p>
+          <EmptyState
+            icon={<AlertTriangle />}
+            title="No defects found"
+            message="No defects match your current filters or no defects have been detected yet."
+          >
             {isAdmin() && (
-              <Link to="/inspections" className="btn-primary inline-flex items-center">
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                View Inspections
+              <Link to="/inspections">
+                <Button leftIcon={<AlertTriangle />}>
+                  View Inspections
+                </Button>
               </Link>
             )}
-          </div>
-          </div>
+          </EmptyState>
         )}
         </div>
       )}
       
-      {/* Defect Assignment Modal */}
-      {showAssignModal && selectedDefect && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Assign Defect to Staff
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Assigning defect: <span className="font-medium">{selectedDefect.defectId}</span>
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Type: <span className="font-medium">{selectedDefect.defectType.replace('_', ' ')}</span> | 
-                    Severity: <span className="font-medium">{selectedDefect.severity}</span>
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
-                    Note: This defect will automatically appear as a task for the assigned staff member.
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Assign to Maintenance Staff *
-                  </label>
-                  <select
-                    className="input-field w-full"
-                    value={selectedStaff}
-                    onChange={(e) => setSelectedStaff(e.target.value)}
-                  >
-                    <option value="">Select staff member...</option>
-                    {maintenanceStaff.map(staff => (
-                      <option key={staff._id} value={staff._id}>
-                        {staff.firstName} {staff.lastName} - {staff.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      {/* Create Task from Defect Modal */}
+      <Modal
+        isOpen={showAssignModal && selectedDefect}
+        onClose={() => {
+          setShowAssignModal(false)
+          setSelectedDefect(null)
+          setSelectedStaff('')
+        }}
+        title="Create Maintenance Task from Defect"
+        size="md"
+      >
+        <Modal.Body>
+          {selectedDefect && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Defect: <span className="font-medium">{selectedDefect.defectId}</span>
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Type: <span className="font-medium">{selectedDefect.defectType.replace('_', ' ')}</span> | 
+                  Severity: <span className="font-medium">{selectedDefect.severity}</span>
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
+                  ℹ️ A new maintenance task will be created and assigned to the selected staff member.
+                </p>
               </div>
               
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowAssignModal(false)
-                    setSelectedDefect(null)
-                    setSelectedStaff('')
-                  }}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmAssignment}
-                  disabled={!selectedStaff}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Assign Defect
-                </button>
-              </div>
+              <Select
+                label="Assign to Maintenance Staff *"
+                value={selectedStaff}
+                onChange={(e) => setSelectedStaff(e.target.value)}
+                options={[
+                  { value: '', label: 'Select staff member...' },
+                  ...maintenanceStaff.map(staff => ({
+                    value: staff._id,
+                    label: `${staff.firstName} ${staff.lastName} - ${staff.email}`
+                  }))
+                ]}
+              />
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowAssignModal(false)
+              setSelectedDefect(null)
+              setSelectedStaff('')
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmAssignment}
+            disabled={!selectedStaff}
+          >
+            Create Task
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />

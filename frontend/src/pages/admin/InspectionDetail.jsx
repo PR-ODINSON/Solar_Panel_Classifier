@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Download, MapPin, Calendar, Camera, Thermometer, AlertTriangle, CheckCircle, FileText, Eye } from 'lucide-react'
 import api from '../../api/apiClient.js'
+import { Button, Badge, Skeleton, EmptyState, Card } from '../../components/ui'
 
 const InspectionDetail = () => {
   const { id } = useParams()
@@ -64,35 +65,14 @@ const InspectionDetail = () => {
     }
   }
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'immediate': return 'text-red-700 bg-red-200'
-      case 'high': return 'text-orange-700 bg-orange-200'
-      case 'medium': return 'text-yellow-700 bg-yellow-200'
-      case 'low': return 'text-green-700 bg-green-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'text-green-700 bg-green-200'
-      case 'scheduled': return 'text-blue-700 bg-blue-200'
-      case 'pending': return 'text-gray-700 bg-gray-200'
-      default: return 'text-gray-700 bg-gray-200'
-    }
-  }
 
   // Loading state
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/inspections"
-            className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <ArrowLeft className="h-5 w-5" />
+          <Link to="/inspections">
+            <Button variant="ghost" size="sm" leftIcon={<ArrowLeft />} />
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -100,14 +80,11 @@ const InspectionDetail = () => {
             </h1>
           </div>
         </div>
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              Loading inspection details...
-            </h3>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
+        <Skeleton.Card />
       </div>
     )
   }
@@ -117,11 +94,8 @@ const InspectionDetail = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/inspections"
-            className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <ArrowLeft className="h-5 w-5" />
+          <Link to="/inspections">
+            <Button variant="ghost" size="sm" leftIcon={<ArrowLeft />} />
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -129,20 +103,15 @@ const InspectionDetail = () => {
             </h1>
           </div>
         </div>
-        <div className="card">
-          <div className="card-body text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Error Loading Inspection
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {error}
-            </p>
-            <Link to="/inspections" className="btn-primary">
-              Back to Inspections
-            </Link>
-          </div>
-        </div>
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Error Loading Inspection"
+          message={error}
+        >
+          <Link to="/inspections">
+            <Button>Back to Inspections</Button>
+          </Link>
+        </EmptyState>
       </div>
     )
   }
@@ -156,11 +125,8 @@ const InspectionDetail = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/inspections"
-            className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <ArrowLeft className="h-5 w-5" />
+          <Link to="/inspections">
+            <Button variant="ghost" size="sm" leftIcon={<ArrowLeft />} />
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -173,23 +139,17 @@ const InspectionDetail = () => {
         </div>
         <div className="flex items-center space-x-3">
           {inspection.filename && (
-            <a
-              href={`/download/${inspection.filename}`}
-              download
-              className="btn-secondary inline-flex items-center"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Download Excel
+            <a href={`/download/${inspection.filename}`} download>
+              <Button variant="secondary" leftIcon={<FileText />}>
+                Download Excel
+              </Button>
             </a>
           )}
           {inspection.annotated_image && (
-            <a
-              href={`/download/${inspection.annotated_image}`}
-              download
-              className="btn-secondary inline-flex items-center"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Image
+            <a href={`/download/${inspection.annotated_image}`} download>
+              <Button variant="secondary" leftIcon={<Download />}>
+                Download Image
+              </Button>
             </a>
           )}
         </div>
@@ -233,13 +193,9 @@ const InspectionDetail = () => {
                 <CheckCircle className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">Status</p>
-                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                    inspection.status === 'completed' 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                  }`}>
-                    {inspection.status?.toUpperCase() || 'COMPLETED'}
-                  </span>
+                  <Badge status={inspection.status || 'completed'}>
+                    {(inspection.status || 'COMPLETED').toUpperCase()}
+                  </Badge>
                 </div>
               </div>
               
@@ -486,12 +442,10 @@ const InspectionDetail = () => {
                       </p>
                     </div>
                   </div>
-                  <a
-                    href={`/download/${inspection.filename}`}
-                    download
-                    className="btn-secondary text-sm"
-                  >
-                    Download
+                  <a href={`/download/${inspection.filename}`} download>
+                    <Button variant="secondary" size="sm">
+                      Download
+                    </Button>
                   </a>
                 </div>
               )}
@@ -509,12 +463,10 @@ const InspectionDetail = () => {
                       </p>
                     </div>
                   </div>
-                  <a
-                    href={`/download/${inspection.annotated_image}`}
-                    download
-                    className="btn-secondary text-sm"
-                  >
-                    Download
+                  <a href={`/download/${inspection.annotated_image}`} download>
+                    <Button variant="secondary" size="sm">
+                      Download
+                    </Button>
                   </a>
                 </div>
               )}
@@ -556,12 +508,10 @@ const InspectionDetail = () => {
                 Detected Defects
               </h4>
               {defects.length > 0 && (
-                <Link 
-                  to={`/defects?inspection=${id}`}
-                  className="btn-secondary text-sm inline-flex items-center"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  View All Defects
+                <Link to={`/defects?inspection=${id}`}>
+                  <Button variant="secondary" size="sm" leftIcon={<Eye />}>
+                    View All Defects
+                  </Button>
                 </Link>
               )}
             </div>
@@ -590,9 +540,9 @@ const InspectionDetail = () => {
                             <h5 className="text-sm font-medium text-gray-900 dark:text-white">
                               {defect.defectId}
                             </h5>
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDefectColor(defect.severity)}`}>
+                            <Badge severity={defect.severity}>
                               {defect.severity.toUpperCase()}
-                            </span>
+                            </Badge>
                           </div>
                           <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                             {defect.description}
@@ -604,11 +554,10 @@ const InspectionDetail = () => {
                           </div>
                         </div>
                       </div>
-                      <Link
-                        to={`/defects/${defect._id}`}
-                        className="btn-secondary text-xs"
-                      >
-                        View Details
+                      <Link to={`/defects/${defect._id}`}>
+                        <Button variant="secondary" size="sm">
+                          View Details
+                        </Button>
                       </Link>
                     </div>
                   </div>

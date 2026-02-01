@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { HelpCircle, ArrowLeft, Home } from 'lucide-react'
+import { Button } from '../components/ui'
 
 const NotFound = () => {
   return (
@@ -23,21 +24,20 @@ const NotFound = () => {
         </p>
         
         <div className="space-y-3">
-          <Link
-            to="/"
-            className="w-full btn-primary inline-flex items-center justify-center"
-          >
-            <Home className="h-4 w-4 mr-2" />
-            Go to Dashboard
+          <Link to="/">
+            <Button leftIcon={Home} className="w-full">
+              Go to Dashboard
+            </Button>
           </Link>
           
-          <button
+          <Button
+            variant="secondary"
+            leftIcon={ArrowLeft}
             onClick={() => window.history.back()}
-            className="w-full btn-secondary inline-flex items-center justify-center"
+            className="w-full"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
             Go Back
-          </button>
+          </Button>
         </div>
       </div>
     </div>

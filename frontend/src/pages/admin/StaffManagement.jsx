@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users, Search, Filter, Edit, Trash2, UserPlus, Mail, Phone, Calendar, Shield } from 'lucide-react'
 import apiClient from '../../api/apiClient.js'
+import { Button, Badge, Skeleton, EmptyState } from '../../components/ui'
 
 const StaffManagement = () => {
   const [users, setUsers] = useState([])
@@ -55,23 +56,6 @@ const StaffManagement = () => {
     return matchesSearch && matchesRole
   })
 
-  const getRoleBadgeColor = (role) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
-      case 'maintenance_staff':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-    }
-  }
-
-  const getStatusBadgeColor = (isActive) => {
-    return isActive
-      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-  }
-
   const formatDate = (date) => {
     if (!date) return 'Never'
     return new Date(date).toLocaleDateString('en-US', {
@@ -95,10 +79,9 @@ const StaffManagement = () => {
             Manage system users and their roles
           </p>
         </div>
-        <button className="btn-primary inline-flex items-center">
-          <UserPlus className="h-4 w-4 mr-2" />
+        <Button leftIcon={<UserPlus />}>
           Add New User
-        </button>
+        </Button>
       </div>
 
       {/* Filters and Search */}
@@ -142,29 +125,21 @@ const StaffManagement = () => {
       )}
 
       {loading ? (
-        <div className="card">
-          <div className="card-body">
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-          </div>
+        <div className="space-y-4">
+          <Skeleton.Card />
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div className="card">
-          <div className="card-body">
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No users found
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                {searchTerm || filterRole !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'No users have been added yet'}
-              </p>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          icon={<Users />}
+          title="No users found"
+          message={
+            searchTerm || filterRole !== 'all'
+              ? 'Try adjusting your search or filters'
+              : 'No users have been added yet'
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filteredUsers.map((user) => (
@@ -185,12 +160,12 @@ const StaffManagement = () => {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {user.firstName} {user.lastName}
                         </h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(user.role)}`}>
+                        <Badge variant={user.role === 'admin' ? 'primary' : 'info'}>
                           {user.role === 'maintenance_staff' ? 'Maintenance Staff' : 'Admin'}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(user.isActive)}`}>
+                        </Badge>
+                        <Badge variant={user.isActive ? 'success' : 'danger'}>
                           {user.isActive ? 'Active' : 'Inactive'}
-                        </span>
+                        </Badge>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
@@ -235,18 +210,18 @@ const StaffManagement = () => {
 
                   {/* Actions */}
                   <div className="flex items-center space-x-2 ml-4">
-                    <button
-                      className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Edit />}
                       title="Edit User"
-                    >
-                      <Edit className="h-5 w-5" />
-                    </button>
-                    <button
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Trash2 />}
                       title="Delete User"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    />
                   </div>
                 </div>
               </div>

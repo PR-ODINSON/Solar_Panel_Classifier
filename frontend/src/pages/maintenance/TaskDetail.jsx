@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -19,12 +19,14 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Input, Badge, Card, Skeleton, EmptyState } from '../../components/ui'
 
 const TaskDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const { toasts, removeToast, success, error, info } = useToast()
+  const fileInputRef = useRef(null)
   
   const [task, setTask] = useState(null)
   const [observations, setObservations] = useState([])
@@ -42,12 +44,12 @@ const TaskDetail = () => {
   const fetchTaskDetails = async () => {
     try {
       setLoading(true)
-      // Fetch defect details (defects are treated as tasks for maintenance staff)
-      const response = await api.defects.get(id)
+      // Fetch maintenance task details
+      const response = await api.maintenance.get(id)
       console.log('Task response:', response) // Debug log
       
-      // Handle different response structures
-      const taskData = response.data?.defect || response.defect || response.data?.data?.defect
+      // Consistent response structure from backend
+      const taskData = response.data?.task
       
       if (!taskData) {
         console.error('Task not found in response:', response)
@@ -66,8 +68,8 @@ const TaskDetail = () => {
 
   const fetchObservations = async () => {
     try {
-      // Use defects API for observations (defects are tasks for maintenance staff)
-      const response = await api.defects.getObservations(id)
+      // Use maintenance API for observations
+      const response = await api.maintenance.getObservations(id)
       setObservations(response.data?.observations || [])
     } catch (err) {
       console.error('Error fetching observations:', err)
@@ -97,8 +99,8 @@ const TaskDetail = () => {
         images: observationImages // Pass File objects directly
       }
 
-      // Use defects API for observations (defects are tasks)
-      const response = await api.defects.addObservation(id, observationData)
+      // Use maintenance API for observations
+      const response = await api.maintenance.addObservation(id, observationData)
       
       if (response.success) {
         success('Observation added successfully')
@@ -119,8 +121,8 @@ const TaskDetail = () => {
     if (!confirm('Are you sure you want to delete this observation?')) return
 
     try {
-      // Use defects API for observations (defects are tasks)
-      await api.defects.deleteObservation(id, observationId)
+      // Use maintenance API for observations
+      await api.maintenance.deleteObservation(id, observationId)
       success('Observation deleted successfully')
       fetchObservations()
     } catch (err) {
@@ -129,32 +131,19 @@ const TaskDetail = () => {
     }
   }
 
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      on_hold: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[status] || colors.pending
-  }
-
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[priority] || colors.medium
-  }
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <Skeleton.Card />
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton.Card />
+            <Skeleton.Card />
+          </div>
+          <div className="space-y-6">
+            <Skeleton.Card />
+          </div>
+        </div>
       </div>
     )
   }
@@ -162,16 +151,15 @@ const TaskDetail = () => {
   if (!task) {
     return (
       <div className="p-6">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Task Not Found</h2>
-          <button
-            onClick={() => navigate('/maintenance/dashboard')}
-            className="mt-4 btn-primary"
-          >
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Task Not Found"
+          message="The task you're looking for doesn't exist or has been removed."
+        >
+          <Button onClick={() => navigate('/maintenance/dashboard')}>
             Back to Dashboard
-          </button>
-        </div>
+          </Button>
+        </EmptyState>
       </div>
     )
   }
@@ -180,13 +168,14 @@ const TaskDetail = () => {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => navigate(-1)}
-          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
+          leftIcon={<ArrowLeft />}
+          className="mb-4"
         >
-          <ArrowLeft className="h-5 w-5 mr-2" />
           Back
-        </button>
+        </Button>
         
         <div className="flex items-start justify-between">
           <div>
@@ -196,12 +185,8 @@ const TaskDetail = () => {
             <p className="text-gray-600 dark:text-gray-400">{task.taskId}</p>
           </div>
           <div className="flex space-x-2">
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(task.priority)}`}>
-              {task.priority}
-            </span>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(task.status)}`}>
-              {task.status?.replace('_', ' ')}
-            </span>
+            <Badge priority={task.priority}>{task.priority}</Badge>
+            <Badge status={task.status}>{task.status?.replace('_', ' ')}</Badge>
           </div>
         </div>
       </div>
@@ -209,12 +194,51 @@ const TaskDetail = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Related Defect Info (if exists) */}
+          {task.relatedDefect && (
+            <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
+              <Card.Header className="border-orange-200 dark:border-orange-800">
+                <h3 className="text-lg font-medium text-orange-900 dark:text-orange-200">Related Defect</h3>
+              </Card.Header>
+              <Card.Body>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <label className="text-xs font-medium text-orange-700 dark:text-orange-300">Defect ID</label>
+                    <p className="mt-1 text-orange-900 dark:text-orange-100">{task.relatedDefect.defectId}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-orange-700 dark:text-orange-300">Type</label>
+                    <p className="mt-1 text-orange-900 dark:text-orange-100 capitalize">
+                      {task.relatedDefect.defectType?.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-orange-700 dark:text-orange-300">Severity</label>
+                    <p className="mt-1 text-orange-900 dark:text-orange-100 capitalize">{task.relatedDefect.severity}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-orange-700 dark:text-orange-300">Status</label>
+                    <p className="mt-1 text-orange-900 dark:text-orange-100 capitalize">
+                      {task.relatedDefect.status?.replace('_', ' ')}
+                    </p>
+                  </div>
+                </div>
+                {task.relatedDefect.description && (
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-orange-700 dark:text-orange-300">Defect Description</label>
+                    <p className="mt-1 text-sm text-orange-900 dark:text-orange-100">{task.relatedDefect.description}</p>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          )}
+
           {/* Task Details */}
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Task Details</h3>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
@@ -245,41 +269,38 @@ const TaskDetail = () => {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
 
           {/* Observations Section */}
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">Extra Observations</h3>
-                <button
+                <Button
+                  size="sm"
                   onClick={() => setShowAddObservation(!showAddObservation)}
-                  className="btn-primary btn-sm"
                 >
                   {showAddObservation ? 'Cancel' : 'Add Observation'}
-                </button>
+                </Button>
               </div>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               {/* Add Observation Form */}
               {showAddObservation && (
                 <div className="mb-6 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                   <h4 className="text-md font-medium text-gray-900 dark:text-white mb-4">New Observation</h4>
                   
                   {/* Text Input */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Details
-                    </label>
-                    <textarea
-                      value={observationText}
-                      onChange={(e) => setObservationText(e.target.value)}
-                      placeholder="Add any additional observations about this task or nearby panels..."
-                      rows={4}
-                      className="input w-full"
-                    />
-                  </div>
+                  <Input
+                    as="textarea"
+                    label="Details"
+                    value={observationText}
+                    onChange={(e) => setObservationText(e.target.value)}
+                    placeholder="Add any additional observations about this task or nearby panels..."
+                    rows={4}
+                    className="mb-4"
+                  />
 
                   {/* Image Upload */}
                   <div className="mb-4">
@@ -287,18 +308,23 @@ const TaskDetail = () => {
                       Images (Optional)
                     </label>
                     <div className="flex items-center space-x-2 mb-3">
-                      <label className="btn-secondary btn-sm cursor-pointer">
-                        <Upload className="h-4 w-4 mr-2" />
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        leftIcon={<Upload className="h-4 w-4" />}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
                         Choose Images
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/*"
-                          onChange={handleImageSelect}
-                          className="hidden"
-                          max="5"
-                        />
-                      </label>
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                        max="5"
+                      />
                       <span className="text-xs text-gray-500">Max 5 images, 5MB each</span>
                     </div>
 
@@ -312,12 +338,14 @@ const TaskDetail = () => {
                               alt={`Preview ${index + 1}`}
                               className="w-full h-24 object-cover rounded"
                             />
-                            <button
+                            <Button
+                              variant="danger"
+                              size="sm"
                               onClick={() => handleRemoveImage(index)}
-                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              className="absolute top-1 right-1 !p-1 rounded-full"
                             >
                               <X className="h-3 w-3" />
-                            </button>
+                            </Button>
                             <span className="absolute bottom-1 left-1 px-2 py-1 bg-black/50 text-white text-xs rounded">
                               {(file.size / 1024 / 1024).toFixed(2)}MB
                             </span>
@@ -329,24 +357,24 @@ const TaskDetail = () => {
 
                   {/* Submit Button */}
                   <div className="flex justify-end space-x-2">
-                    <button
+                    <Button
+                      variant="secondary"
                       onClick={() => {
                         setShowAddObservation(false)
                         setObservationText('')
                         setObservationImages([])
                       }}
-                      className="btn-secondary"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleSubmitObservation}
                       disabled={submitting || (!observationText.trim() && observationImages.length === 0)}
-                      className="btn-primary"
+                      loading={submitting}
+                      leftIcon={<Save />}
                     >
-                      <Save className="h-4 w-4 mr-2" />
                       {submitting ? 'Saving...' : 'Save Observation'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -354,13 +382,11 @@ const TaskDetail = () => {
               {/* Observations List */}
               <div className="space-y-4">
                 {observations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400">No observations yet</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">
-                      Add observations about this task or nearby panels
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={<FileText />}
+                    title="No observations yet"
+                    message="Add observations about this task or nearby panels"
+                  />
                 ) : (
                   observations.map((observation) => (
                     <div key={observation._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -377,12 +403,14 @@ const TaskDetail = () => {
                           </div>
                         </div>
                         {observation.author?._id === user._id && (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDeleteObservation(observation._id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </Button>
                         )}
                       </div>
 
@@ -413,18 +441,18 @@ const TaskDetail = () => {
                   ))
                 )}
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Assignment Info */}
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Assignment</h3>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
@@ -445,15 +473,15 @@ const TaskDetail = () => {
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
 
           {/* Quick Actions */}
-          <div className="card">
-            <div className="card-header">
+          <Card>
+            <Card.Header>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Quick Actions</h3>
-            </div>
-            <div className="card-body">
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-2">
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                   <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -462,8 +490,8 @@ const TaskDetail = () => {
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         </div>
       </div>
 

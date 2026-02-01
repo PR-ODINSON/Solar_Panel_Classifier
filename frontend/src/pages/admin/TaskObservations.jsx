@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Badge, Skeleton, EmptyState } from '../../components/ui'
 
 const TaskObservations = () => {
   const { id } = useParams()
@@ -48,18 +49,6 @@ const TaskObservations = () => {
     }
   }
 
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      on_hold: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[status] || colors.pending
-  }
-
   const filteredObservations = filterAuthor === 'all' 
     ? observations 
     : observations.filter(obs => obs.author?._id === filterAuthor)
@@ -68,8 +57,11 @@ const TaskObservations = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <Skeleton.Card />
+        <div className="mt-6">
+          <Skeleton.Card />
+        </div>
       </div>
     )
   }
@@ -78,13 +70,16 @@ const TaskObservations = () => {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/admin/maintenance')}
-          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Back to Maintenance Tasks
-        </button>
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<ArrowLeft />}
+            onClick={() => navigate('/admin/maintenance')}
+          >
+            Back to Maintenance Tasks
+          </Button>
+        </div>
         
         <div className="flex items-start justify-between">
           <div>
@@ -95,9 +90,9 @@ const TaskObservations = () => {
               {task?.taskId} - {task?.title}
             </p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(task?.status)}`}>
+          <Badge status={task?.status}>
             {task?.status?.replace('_', ' ')}
-          </span>
+          </Badge>
         </div>
       </div>
 
@@ -170,20 +165,15 @@ const TaskObservations = () => {
       {/* Observations List */}
       <div className="space-y-4">
         {filteredObservations.length === 0 ? (
-          <div className="card">
-            <div className="card-body">
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">No observations found</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500">
-                  {filterAuthor === 'all' 
-                    ? 'Maintenance staff will add observations as they work on this task'
-                    : 'This staff member has not added any observations yet'
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
+          <EmptyState
+            icon={<FileText />}
+            title="No observations found"
+            message={
+              filterAuthor === 'all'
+                ? 'Maintenance staff will add observations as they work on this task'
+                : 'This staff member has not added any observations yet'
+            }
+          />
         ) : (
           filteredObservations.map((observation, index) => (
             <div key={observation._id} className="card">

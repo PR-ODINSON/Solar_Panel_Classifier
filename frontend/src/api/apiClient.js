@@ -603,6 +603,16 @@ const api = {
       }
     },
 
+    createFromDefect: async (defectId, taskData) => {
+      try {
+        const response = await apiClient.post(`/api/maintenance/from-defect/${defectId}`, taskData)
+        return response.data
+      } catch (error) {
+        console.error('Error creating task from defect:', error)
+        throw error
+      }
+    },
+
     update: async (id, updates) => {
       try {
         const response = await apiClient.put(`/api/maintenance/${id}`, updates)

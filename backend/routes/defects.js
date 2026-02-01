@@ -38,7 +38,7 @@ const observationUpload = multer({
 });
 
 // Rate limiting
-const defectRateLimit = createRateLimit(15 * 60 * 1000, 30); // 30 requests per 15 minutes
+const defectRateLimit = createRateLimit(15 * 60 * 1000, 1000); // 1000 requests per 15 minutes
 
 /**
  * @route   GET /api/defects

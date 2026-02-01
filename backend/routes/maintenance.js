@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import MaintenanceTask from '../models/MaintenanceTask.js';
+import Defect from '../models/Defect.js';
 import Panel from '../models/Panel.js';
 import User from '../models/User.js';
 import { authenticate, requireMaintenanceOrAdmin, requireAdmin, createRateLimit } from '../middleware/auth.js';
@@ -53,6 +54,42 @@ const observationUpload = multer({
 
 // Rate limiting
 const maintenanceRateLimit = createRateLimit(15 * 60 * 1000, 30); // 30 requests per 15 minutes
+
+/**
+ * @route   GET /api/maintenance/my-tasks
+ * @desc    Get maintenance tasks assigned to the current user (semantic alias)
+ * @access  Private (maintenance staff only)
+ */
+router.get('/my-tasks', authenticate, requireMaintenanceOrAdmin, async (req, res) => {
+    try {
+        // Force filter by current user for maintenance staff
+        const query = req.user.role === 'maintenance_staff' 
+            ? { assignedTo: req.user._id }
+            : {};
+
+        const tasks = await MaintenanceTask.find(query)
+            .populate('assignedTo', 'firstName lastName username email')
+            .populate('panel', 'panelId serialNumber location.site status')
+            .populate('relatedDefect', 'defectId defectType severity status')
+            .sort({ scheduledDate: -1 })
+            .limit(100);
+
+        res.json({
+            success: true,
+            data: {
+                tasks,
+                count: tasks.length
+            }
+        });
+    } catch (error) {
+        console.error('Get my tasks error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve tasks',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
 
 /**
  * @route   GET /api/maintenance
@@ -294,6 +331,163 @@ router.get('/:id', authenticate, requireMaintenanceOrAdmin, async (req, res) => 
         res.status(500).json({
             success: false,
             message: 'Failed to fetch maintenance task',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * @route   POST /api/maintenance/from-defect/:defectId
+ * @desc    Create maintenance task from a defect
+ * @access  Private (Admin only)
+ */
+router.post('/from-defect/:defectId', authenticate, requireAdmin, maintenanceRateLimit, async (req, res) => {
+    try {
+        const { defectId } = req.params;
+        const { assignedTo, priority, dueDate, notes, estimatedDuration } = req.body;
+
+        // Validate defect exists
+        const defect = await Defect.findById(defectId)
+            .populate('panel', 'panelId serialNumber location')
+            .populate('inspection', 'inspectionId inspectionDate');
+
+        if (!defect) {
+            return res.status(404).json({
+                success: false,
+                message: 'Defect not found'
+            });
+        }
+
+        // Validate assigned user exists and is maintenance staff
+        if (!assignedTo) {
+            return res.status(400).json({
+                success: false,
+                message: 'Assigned user is required'
+            });
+        }
+
+        const assignedUser = await User.findById(assignedTo);
+        if (!assignedUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'Assigned user not found'
+            });
+        }
+
+        if (assignedUser.role !== 'maintenance_staff') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only assign tasks to maintenance staff'
+            });
+        }
+
+        // Note: Multiple tasks can be created for the same defect (e.g., different staff, follow-ups)
+        // Removed the check that prevented creating multiple tasks for one defect
+
+        // Generate task ID
+        const count = await MaintenanceTask.countDocuments();
+        const taskId = `TASK${String(count + 1).padStart(6, '0')}`;
+
+        // Determine task type and category based on defect type
+        const typeMapping = {
+            crack: { type: 'repair', category: 'mechanical' },
+            hotspot: { type: 'inspection', category: 'electrical' },
+            soiling: { type: 'cleaning', category: 'cleaning' },
+            shading: { type: 'inspection', category: 'performance' },
+            corrosion: { type: 'repair', category: 'mechanical' },
+            delamination: { type: 'repair', category: 'mechanical' },
+            discoloration: { type: 'inspection', category: 'performance' },
+            burn_mark: { type: 'emergency', category: 'safety' },
+            cell_failure: { type: 'replacement', category: 'electrical' },
+            junction_box_issue: { type: 'repair', category: 'electrical' },
+            wiring_issue: { type: 'repair', category: 'electrical' },
+            mounting_issue: { type: 'repair', category: 'mechanical' },
+            glass_breakage: { type: 'replacement', category: 'mechanical' },
+            frame_damage: { type: 'repair', category: 'mechanical' }
+        };
+
+        const taskMapping = typeMapping[defect.defectType] || { type: 'corrective', category: 'other' };
+
+        // Calculate scheduled and due dates
+        const scheduledDate = new Date();
+        const calculatedDueDate = dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default 7 days
+
+        // Create maintenance task
+        const taskData = {
+            taskId,
+            title: `${defect.defectType.replace(/_/g, ' ').toUpperCase()} Repair - ${defect.defectId}`,
+            description: `Repair task for ${defect.defectType} defect detected during inspection. Original defect description: ${defect.description}`,
+            type: taskMapping.type,
+            category: taskMapping.category,
+            priority: priority || defect.priority || defect.severity,
+            status: 'assigned',
+            panel: defect.panel?._id || defect.panel,
+            relatedDefect: defect._id,
+            relatedInspection: defect.inspection?._id || defect.inspection,
+            createdBy: req.user._id,
+            assignedTo,
+            scheduledDate,
+            dueDate: calculatedDueDate,
+            estimatedDuration: estimatedDuration || 120, // Default 2 hours
+            location: {
+                site: defect.panel?.location?.site || defect.location?.description || 'Unknown Site',
+                zone: defect.panel?.location?.zone,
+                specificLocation: defect.location?.description
+            }
+        };
+
+        // Add custom notes if provided
+        if (notes) {
+            taskData.notes = [{
+                text: notes,
+                author: req.user._id,
+                type: 'general',
+                createdAt: new Date()
+            }];
+        }
+
+        const task = new MaintenanceTask(taskData);
+        await task.save();
+
+        // Update defect status to indicate task was created
+        // Change status to 'in_progress' since 'assigned' is not a valid defect status
+        if (defect.status === 'open') {
+            defect.status = 'in_progress';
+            await defect.save();
+        }
+
+        // Populate the response
+        await task.populate([
+            { path: 'panel', select: 'panelId serialNumber location.site status' },
+            { path: 'relatedDefect', select: 'defectId defectType severity status description location' },
+            { path: 'relatedInspection', select: 'inspectionId inspectionDate' },
+            { path: 'createdBy', select: 'firstName lastName username email' },
+            { path: 'assignedTo', select: 'firstName lastName username email' }
+        ]);
+
+        res.status(201).json({
+            success: true,
+            message: `Maintenance task created and assigned to ${assignedUser.firstName} ${assignedUser.lastName}`,
+            data: { task }
+        });
+
+    } catch (error) {
+        console.error('Create task from defect error:', error);
+
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error',
+                errors: Object.values(error.errors).map(err => ({
+                    field: err.path,
+                    message: err.message
+                }))
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create maintenance task from defect',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -564,14 +758,6 @@ router.post('/:id/notes', authenticate, requireMaintenanceOrAdmin, maintenanceRa
  */
 router.put('/:id/status', authenticate, requireMaintenanceOrAdmin, maintenanceRateLimit, async (req, res) => {
     try {
-        // Only admins can change task status
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({
-                success: false,
-                message: 'Only administrators can change task status'
-            });
-        }
-
         const { status } = req.body;
         
         if (!status) {
@@ -589,7 +775,14 @@ router.put('/:id/status', authenticate, requireMaintenanceOrAdmin, maintenanceRa
             });
         }
 
+        // Build query based on role
         let query = { _id: req.params.id };
+        
+        // Maintenance staff can only update their own tasks
+        if (req.user.role === 'maintenance_staff') {
+            query.assignedTo = req.user._id;
+        }
+        // Admins can update any task (no additional filter)
 
         const task = await MaintenanceTask.findOneAndUpdate(
             query,

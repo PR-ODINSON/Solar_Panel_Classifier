@@ -406,10 +406,20 @@ if __name__ == "__main__":
             pythonProcess.on('close', (code) => {
                 if (code === 0) {
                     try {
-                        const results = JSON.parse(stdout.trim());
+                        // Extract JSON from stdout (handle any stray output)
+                        const trimmed = stdout.trim();
+                        // Try to find JSON array or object in the output
+                        let jsonStr = trimmed;
+                        const arrayStart = trimmed.lastIndexOf('[');
+                        const objectStart = trimmed.lastIndexOf('{');
+                        const start = Math.max(arrayStart, objectStart);
+                        if (start > 0) {
+                            jsonStr = trimmed.substring(start);
+                        }
+                        const results = JSON.parse(jsonStr);
                         resolve(results);
                     } catch (error) {
-                        reject(new Error(`Failed to parse YOLO results: ${error.message}`));
+                        reject(new Error(`Failed to parse YOLO results: ${error.message}. Output: ${stdout.substring(0, 200)}`));
                     }
                 } else {
                     reject(new Error(`YOLO detection failed: ${stderr}`));
@@ -449,10 +459,20 @@ if __name__ == "__main__":
             pythonProcess.on('close', (code) => {
                 if (code === 0) {
                     try {
-                        const results = JSON.parse(stdout.trim());
+                        // Extract JSON from stdout (handle any stray output)
+                        const trimmed = stdout.trim();
+                        // Try to find JSON array or object in the output
+                        let jsonStr = trimmed;
+                        const arrayStart = trimmed.lastIndexOf('[');
+                        const objectStart = trimmed.lastIndexOf('{');
+                        const start = Math.max(arrayStart, objectStart);
+                        if (start > 0) {
+                            jsonStr = trimmed.substring(start);
+                        }
+                        const results = JSON.parse(jsonStr);
                         resolve(results);
                     } catch (error) {
-                        reject(new Error(`Failed to parse classification results: ${error.message}`));
+                        reject(new Error(`Failed to parse classification results: ${error.message}. Output: ${stdout.substring(0, 200)}`));
                     }
                 } else {
                     reject(new Error(`Panel classification failed: ${stderr}`));

@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Badge, Card, Skeleton, EmptyState } from '../../components/ui'
 
 const MaintenanceDashboard = () => {
   const { user } = useAuth()
@@ -34,13 +35,13 @@ const MaintenanceDashboard = () => {
     try {
       setLoading(true)
       
-      // Fetch assigned defects (which are tasks for maintenance staff)
-      const tasksRes = await api.defects.list({ 
+      // Fetch assigned maintenance tasks
+      const tasksRes = await api.maintenance.list({ 
         assignedTo: user?.id || user?._id,
         limit: 100
       })
       
-      const tasks = tasksRes.data?.defects || []
+      const tasks = tasksRes.data?.tasks || []
       
       // Debug logging
       console.log('Current user:', {
@@ -87,20 +88,21 @@ const MaintenanceDashboard = () => {
         completedToday
       })
       
-      // Set tasks from assigned defects
-      setMyTasks(tasks.slice(0, 5).map(defect => ({
-        id: defect._id,
-        title: `${defect.defectType.replace('_', ' ')} Defect - ${defect.defectId}`,
-        priority: defect.priority,
-        status: defect.status,
-        scheduledDate: defect.detectedDate,
-        location: defect.location?.description || defect.location?.site || 'Location not specified',
-        estimatedTime: '1-2 hours',
-        taskId: defect.defectId,
-        description: defect.description || 'No description available',
-        type: defect.defectType,
-        category: defect.severity,
-        createdAt: defect.detectedDate
+      // Set tasks from assigned maintenance tasks
+      setMyTasks(tasks.slice(0, 5).map(task => ({
+        id: task._id,
+        title: task.title,
+        priority: task.priority,
+        status: task.status,
+        scheduledDate: task.scheduledDate,
+        location: task.location?.site || 'Location not specified',
+        estimatedTime: task.estimatedDuration ? `${Math.round(task.estimatedDuration / 60)} hour${task.estimatedDuration > 60 ? 's' : ''}` : '1-2 hours',
+        taskId: task.taskId,
+        description: task.description || 'No description available',
+        type: task.type,
+        category: task.category,
+        createdAt: task.createdAt,
+        relatedDefect: task.relatedDefect // Include defect info
       })))
       
       setLastUpdated(new Date())
@@ -116,8 +118,8 @@ const MaintenanceDashboard = () => {
   // Fetch recent activities
   const fetchRecentActivities = async () => {
     try {
-      // Get recent assigned defects (which are tasks for maintenance staff)
-      const tasksRes = await api.defects.list({ 
+      // Get recent assigned maintenance tasks
+      const tasksRes = await api.maintenance.list({ 
         assignedTo: user?.id || user?._id,
         limit: 10,
         sortBy: 'updatedAt',
@@ -126,17 +128,17 @@ const MaintenanceDashboard = () => {
       
       const activities = []
       
-      if (tasksRes.data?.defects) {
-        tasksRes.data.defects.forEach(task => {
+      if (tasksRes.data?.tasks) {
+        tasksRes.data.tasks.forEach(task => {
           let action = 'Assigned'
-          if (task.status === 'resolved' || task.status === 'closed') action = 'Completed'
+          if (task.status === 'completed') action = 'Completed'
           else if (task.status === 'in_progress') action = 'Started'
-          else if (task.status === 'open') action = 'Assigned'
+          else if (task.status === 'assigned') action = 'Assigned'
           
           activities.push({
             id: task._id,
             action,
-            task: `${task.defectType.replace('_', ' ')} - ${task.defectId}`,
+            task: `${task.title} - ${task.taskId}`,
             time: getTimeAgo(task.updatedAt),
             timestamp: new Date(task.updatedAt)
           })
@@ -235,115 +237,91 @@ const MaintenanceDashboard = () => {
     }
   ]
 
-  const getPriorityColor = (priority) => {
-    if (!priority) return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
-    switch (priority.toLowerCase()) {
-      case 'critical':
-        return 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900'
-      case 'high':
-        return 'text-orange-700 bg-orange-100 dark:text-orange-400 dark:bg-orange-900'
-      case 'medium':
-        return 'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900'
-      case 'low':
-        return 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900'
-      default:
-        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
-    }
-  }
-
-  const getStatusColor = (status) => {
-    if (!status) return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900'
-      case 'in_progress':
-        return 'text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900'
-      case 'assigned':
-        return 'text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900'
-      case 'pending':
-        return 'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900'
-      case 'on_hold':
-        return 'text-gray-700 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
-      case 'cancelled':
-        return 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900'
-      default:
-        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700'
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Welcome header */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Welcome back, {user?.firstName || user?.username}!
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Here's your solar panel maintenance overview for today
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={handleRefresh}
-              disabled={loading}
-              className="btn-secondary inline-flex items-center"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Last updated</p>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">
-                {lastUpdated.toLocaleTimeString()}
+      <Card>
+        <Card.Body>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Welcome back, {user?.firstName || user?.username}!
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Here's your solar panel maintenance overview for today
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div key={stat.name} className="card">
-            <div className="card-body">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {stat.name}
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {stat.description}
-                  </p>
-                </div>
-                <div className={`p-3 rounded-full ${
-                  stat.color === 'yellow' ? 'bg-yellow-100 dark:bg-yellow-900' :
-                  stat.color === 'green' ? 'bg-green-100 dark:bg-green-900' :
-                  stat.color === 'red' ? 'bg-red-100 dark:bg-red-900' :
-                  'bg-blue-100 dark:bg-blue-900'
-                }`}>
-                  <stat.icon className={`h-6 w-6 ${
-                    stat.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
-                    stat.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                    stat.color === 'red' ? 'text-red-600 dark:text-red-400' :
-                    'text-blue-600 dark:text-blue-400'
-                  }`} />
-                </div>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleRefresh}
+                disabled={loading}
+                leftIcon={<RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />}
+              >
+                Refresh
+              </Button>
+              <div className="text-right">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Last updated</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {lastUpdated.toLocaleTimeString()}
+                </p>
               </div>
             </div>
           </div>
-        ))}
+        </Card.Body>
+      </Card>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {loading ? (
+          <>
+            <Skeleton.Card />
+            <Skeleton.Card />
+            <Skeleton.Card />
+            <Skeleton.Card />
+          </>
+        ) : (
+          stats.map((stat) => (
+            <Card key={stat.name}>
+              <Card.Body>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {stat.name}
+                    </p>
+                    <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {stat.description}
+                    </p>
+                  </div>
+                  <div className={`p-3 rounded-full ${
+                    stat.color === 'yellow' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                    stat.color === 'green' ? 'bg-green-100 dark:bg-green-900' :
+                    stat.color === 'red' ? 'bg-red-100 dark:bg-red-900' :
+                    'bg-blue-100 dark:bg-blue-900'
+                  }`}>
+                    <stat.icon className={`h-6 w-6 ${
+                      stat.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
+                      stat.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                      stat.color === 'red' ? 'text-red-600 dark:text-red-400' :
+                      'text-blue-600 dark:text-blue-400'
+                    }`} />
+                  </div>
+                </div>
+              </Card.Body>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* My assigned tasks */}
-        <div className="card">
-          <div className="card-header">
+        <Card>
+          <Card.Header>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                 My Assigned Tasks
@@ -355,17 +333,15 @@ const MaintenanceDashboard = () => {
                 View all →
               </Link>
             </div>
-          </div>
-          <div className="card-body">
+          </Card.Header>
+          <Card.Body>
             <div className="space-y-4">
               {myTasks.length === 0 ? (
-                <div className="text-center py-8">
-                  <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400">No assigned tasks yet</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500">
-                    Tasks will appear here when defects are assigned to you
-                  </p>
-                </div>
+                <EmptyState
+                  icon={<Wrench className="h-12 w-12" />}
+                  title="No assigned tasks yet"
+                  message="Tasks will appear here when defects are assigned to you"
+                />
               ) : (
                 myTasks.slice(0, 3).map((task) => (
                 <Link
@@ -378,12 +354,12 @@ const MaintenanceDashboard = () => {
                       {task.title}
                     </h4>
                     <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
+                      <Badge priority={task.priority}>
                         {task.priority}
-                      </span>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(task.status)}`}>
+                      </Badge>
+                      <Badge status={task.status}>
                         {task.status.replace('_', ' ')}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-4">
@@ -405,26 +381,24 @@ const MaintenanceDashboard = () => {
                 </Link>
               )))}
             </div>
-          </div>
-        </div>
+          </Card.Body>
+        </Card>
 
         {/* Recent activity */}
-        <div className="card">
-          <div className="card-header">
+        <Card>
+          <Card.Header>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
               Recent Activity
             </h3>
-          </div>
-          <div className="card-body">
+          </Card.Header>
+          <Card.Body>
             <div className="space-y-4">
               {recentActivity.length === 0 ? (
-                <div className="text-center py-8">
-                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400">No recent activity</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500">
-                    Your recent task updates will appear here
-                  </p>
-                </div>
+                <EmptyState
+                  icon={<Clock className="h-12 w-12" />}
+                  title="No recent activity"
+                  message="Your recent task updates will appear here"
+                />
               ) : (
                 recentActivity.map((activity) => (
                 <div key={activity.id} className="flex items-start space-x-3">
@@ -448,8 +422,8 @@ const MaintenanceDashboard = () => {
                 </div>
               )))}
             </div>
-          </div>
-        </div>
+          </Card.Body>
+        </Card>
       </div>
       
       {/* Toast notifications */}

@@ -4,8 +4,14 @@ import os
 import cv2
 import json
 import numpy as np
+import warnings
 from ultralytics import YOLO
 from pathlib import Path
+
+# Suppress warnings and YOLO output
+warnings.filterwarnings('ignore')
+os.environ['YOLO_VERBOSE'] = 'False'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 def is_likely_panel(crop):
     """Filter to identify likely solar panels with relaxed thresholds"""
@@ -25,8 +31,10 @@ def main():
     tile_dir = sys.argv[2]
     boxes_dir = sys.argv[3]
     
-    # Load YOLO model
-    model = YOLO(model_path)
+    # Load YOLO model (suppress output)
+    import contextlib
+    with contextlib.redirect_stdout(open(os.devnull, 'w')):
+        model = YOLO(model_path)
     
     results = []
     
@@ -39,8 +47,8 @@ def main():
         if img is None:
             continue
 
-        # Run YOLO detection with lower thresholds for better detection
-        detections = model(img, conf=0.35, iou=0.45)[0]
+        # Run YOLO detection with lower thresholds for better detection (suppress verbose output)
+        detections = model(img, conf=0.35, iou=0.45, verbose=False)[0]
         valid_boxes = []
         
         for box in detections.boxes:

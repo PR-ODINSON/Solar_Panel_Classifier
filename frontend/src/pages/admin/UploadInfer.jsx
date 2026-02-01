@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Upload, Camera, Play, Download, AlertTriangle, CheckCircle, Clock, ExternalLink, Wifi, Save, FileText, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Skeleton } from '../../components/ui'
 
 const UploadInfer = () => {
   const { user } = useAuth()
   const { toasts, removeToast, success, error, info, warning } = useToast()
+  const fileInputRef = useRef(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [inferenceResults, setInferenceResults] = useState(null)
@@ -648,14 +650,13 @@ const UploadInfer = () => {
             </span>
           </div>
         </div>
-        <button
+        <Button
           onClick={handleStartInference}
           disabled={uploadedFiles.length === 0 || isProcessing || backendStatus !== 'connected'}
-          className="btn-primary inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          leftIcon={<Play className="h-4 w-4" />}
         >
-          <Play className="h-4 w-4 mr-2" />
           {isProcessing ? 'Processing...' : 'Start Inference'}
-        </button>
+        </Button>
       </div>
 
       {/* Inspection Metadata Form */}
@@ -723,17 +724,20 @@ const UploadInfer = () => {
                 </p>
               </div>
               <div>
-                <label className="btn-primary cursor-pointer inline-flex items-center">
-                  <Camera className="h-4 w-4 mr-2" />
+                <Button 
+                  onClick={() => fileInputRef.current?.click()}
+                  leftIcon={<Camera className="h-4 w-4" />}
+                >
                   Choose Files
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                </label>
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </div>
             </div>
           </div>
@@ -748,13 +752,14 @@ const UploadInfer = () => {
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                 Uploaded Files ({uploadedFiles.length})
               </h3>
-              <button
+              <Button
                 onClick={() => setUploadedFiles([])}
-                className="btn-secondary text-sm"
+                variant="secondary"
+                size="sm"
                 disabled={isProcessing}
               >
                 Clear All
-              </button>
+              </Button>
             </div>
           </div>
           <div className="card-body">
@@ -839,21 +844,10 @@ const UploadInfer = () => {
 
       {/* Processing status */}
       {isProcessing && (
-        <div className="card">
-          <div className="card-body">
-            <div className="flex items-center justify-center space-x-3 py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              <div>
-                <p className="text-lg font-medium text-gray-900 dark:text-white">
-                  Processing Images...
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  AI is analyzing your images for defects using YOLO detection and ResNet classification.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Skeleton.Card
+          title="Processing Images..."
+          subtitle="AI is analyzing your images for defects using YOLO detection and ResNet classification."
+        />
       )}
 
       {/* Inference results */}
@@ -1134,14 +1128,14 @@ const UploadInfer = () => {
                         Save this analysis as an inspection report and automatically create defect records for maintenance tasks.
                       </p>
                     </div>
-                    <button
+                    <Button
                       onClick={handleSaveInspectionReport}
                       disabled={isSavingInspection || !inspectionMetadata.site}
-                      className="btn-primary inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      loading={isSavingInspection}
+                      leftIcon={<Save className="h-4 w-4" />}
                     >
-                      <Save className={`h-4 w-4 mr-2 ${isSavingInspection ? 'animate-spin' : ''}`} />
                       {isSavingInspection ? 'Saving...' : 'Save Inspection'}
-                    </button>
+                    </Button>
                   </div>
                   {!inspectionMetadata.site && (
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
@@ -1168,7 +1162,7 @@ const UploadInfer = () => {
                         </p>
                       </div>
                     </div>
-                    <button
+                    <Button
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to delete this inspection report? This action cannot be undone.')) {
                           try {
@@ -1181,12 +1175,13 @@ const UploadInfer = () => {
                           }
                         }
                       }}
-                      className="btn-danger text-sm inline-flex items-center"
+                      variant="danger"
+                      size="sm"
+                      leftIcon={<Trash2 className="h-4 w-4" />}
                       title="Delete inspection report"
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
                       Delete
-                    </button>
+                    </Button>
                   </div>
                   <div className="flex items-center space-x-4 mt-3">
                     <a
@@ -1217,20 +1212,20 @@ const UploadInfer = () => {
                   </h4>
                   {inferenceResults.results.filter(r => r.success).length > 1 && (
                     <div className="flex items-center space-x-2">
-                      <button
+                      <Button
                         onClick={handleDownloadAllImages}
-                        className="btn-primary text-sm inline-flex items-center"
+                        size="sm"
+                        leftIcon={<Download className="h-4 w-4" />}
                       >
-                        <Download className="h-4 w-4 mr-1" />
                         All Images
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={handleDownloadAllExcel}
-                        className="btn-primary text-sm inline-flex items-center"
+                        size="sm"
+                        leftIcon={<ExternalLink className="h-4 w-4" />}
                       >
-                        <ExternalLink className="h-4 w-4 mr-1" />
                         All Excel
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1245,20 +1240,24 @@ const UploadInfer = () => {
                         <div>Defects: {Object.values(result.summary?.class_distribution || {}).reduce((a, b) => a + b, 0) - (result.summary?.class_distribution?.Clean || 0)}</div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button
+                        <Button
                           onClick={() => handleDownload(result.annotated_image.replace('/outputs/', ''))}
-                          className="flex-1 btn-secondary text-xs inline-flex items-center justify-center"
+                          variant="secondary"
+                          size="xs"
+                          leftIcon={<Download className="h-3 w-3" />}
+                          className="flex-1"
                         >
-                          <Download className="h-3 w-3 mr-1" />
                           Image
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => handleDownload(result.excel_report.replace('/outputs/', ''))}
-                          className="flex-1 btn-secondary text-xs inline-flex items-center justify-center"
+                          variant="secondary"
+                          size="xs"
+                          leftIcon={<ExternalLink className="h-3 w-3" />}
+                          className="flex-1"
                         >
-                          <ExternalLink className="h-3 w-3 mr-1" />
                           Excel
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ))}

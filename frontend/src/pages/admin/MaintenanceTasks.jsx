@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import api from '../../api/apiClient.js'
 import { useToast } from '../../hooks/useToast.js'
 import ToastContainer from '../../components/ToastContainer.jsx'
+import { Button, Badge, Skeleton, EmptyState } from '../../components/ui'
 
 const MaintenanceTasks = () => {
   const { user } = useAuth()
@@ -76,27 +77,7 @@ const MaintenanceTasks = () => {
     }
   }
 
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      on_hold: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[status] || colors.pending
-  }
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    }
-    return colors[priority] || colors.medium
-  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -160,26 +141,21 @@ const MaintenanceTasks = () => {
 
       {/* Tasks List */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="space-y-4">
+          <Skeleton.Card />
+          <Skeleton.Card />
+          <Skeleton.Card />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="card">
-          <div className="card-body">
-            <div className="text-center py-12">
-              <Wrench className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No maintenance tasks found
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                {filters.search || filters.status || filters.priority
-                  ? 'Try adjusting your filters'
-                  : 'Create your first maintenance task to get started'
-                }
-              </p>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          icon={<Wrench />}
+          title="No maintenance tasks found"
+          message={
+            filters.search || filters.status || filters.priority
+              ? 'Try adjusting your filters'
+              : 'Create your first maintenance task to get started'
+          }
+        />
       ) : (
         <>
           <div className="space-y-4">
@@ -192,12 +168,12 @@ const MaintenanceTasks = () => {
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                           {task.title}
                         </h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
+                        <Badge priority={task.priority}>
                           {task.priority}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(task.status)}`}>
+                        </Badge>
+                        <Badge status={task.status}>
                           {task.status?.replace('_', ' ')}
-                        </span>
+                        </Badge>
                       </div>
                       
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -235,20 +211,19 @@ const MaintenanceTasks = () => {
                     </div>
 
                     <div className="ml-4 flex flex-col space-y-2">
-                      <Link
-                        to={`/admin/maintenance/${task._id}/observations`}
-                        className="btn-primary btn-sm"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Observations
+                      <Link to={`/admin/maintenance/${task._id}/observations`}>
+                        <Button size="sm" leftIcon={<Eye />}>
+                          View Observations
+                        </Button>
                       </Link>
-                      <button
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        leftIcon={<Trash2 />}
                         onClick={() => handleDeleteTask(task._id, task.title)}
-                        className="btn-sm bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -263,22 +238,24 @@ const MaintenanceTasks = () => {
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex space-x-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<ChevronLeft />}
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="btn-secondary btn-sm"
                 >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  rightIcon={<ChevronRight />}
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="btn-secondary btn-sm"
                 >
                   Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
+                </Button>
               </div>
             </div>
           )}
