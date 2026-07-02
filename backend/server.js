@@ -62,10 +62,10 @@ const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, Postman, or same-origin)
         const allowedOrigins = [
-            process.env.FRONTEND_URL || 'http://localhost:3000',
-            'http://localhost:3000',
+            process.env.FRONTEND_URL || 'http://localhost:4000',
+            'http://localhost:4000',
             'http://localhost:5173',
-            'http://127.0.0.1:3000',
+            'http://127.0.0.1:4000',
             'http://127.0.0.1:5173'
         ];
         
@@ -93,7 +93,7 @@ app.use(cors(corsOptions));
 
 // Additional CORS headers middleware for extra safety
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Origin', req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:4000');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
@@ -463,7 +463,7 @@ app.post('/cleanup', async (req, res) => {
 // Error handling middleware
 app.use((error, req, res, next) => {
     // Ensure CORS headers are set even on errors
-    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:4000');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     if (error instanceof multer.MulterError) {
@@ -486,7 +486,7 @@ app.use((error, req, res, next) => {
 // 404 handler
 app.use('*', (req, res) => {
     // Ensure CORS headers are set even on 404
-    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:4000');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     res.status(404).json({

@@ -178,3 +178,8 @@ Dockerfile.*
 *.pdf
 *.xls
 *.xlsx
+temp_annotated
+temp_boxes
+temp_tiles
+uploads
+outputs
